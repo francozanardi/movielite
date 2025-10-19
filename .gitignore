@@ -1,0 +1,6 @@
+__pycache__
+*.mp4
+.venv
+.vscode
+*.png
+*.egg-info

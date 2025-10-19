@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "movielite"
+version = "0.1.0"
+authors = [
+  { name="Franco Zanardi", email="francozanardi97@gmail.com" },
+]
+description = "A performance-oriented Python video editing library focused on speed and simplicity."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT License"}
+keywords = ["video", "video editing", "moviepy", "video processing", "performance"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Multimedia :: Video :: Conversion",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+    "numpy",
+    "opencv-python",
+    "pydub>=0.25.1",
+    'audioop-lts; python_version >= "3.13"',
+    "multiprocess",
+    "tqdm",
+    "pictex",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/francozanardi/movielite"
+"Repository" = "https://github.com/francozanardi/movielite"
+"Bug Tracker" = "https://github.com/francozanardi/movielite/issues"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
