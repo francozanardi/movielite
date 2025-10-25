@@ -71,12 +71,10 @@ class ProcessedVideoClip(Clip):
             self._current_frame_idx = -1
             get_logger().debug(f"ProcessedVideoClip: Opened video capture for {self._path}")
 
-        # If we need a frame that's ahead but close, read sequentially
         if frame_idx == self._current_frame_idx and self._last_frame is not None:
-            # Return cached frame
-            return self._last_frame.copy()
+            return self._last_frame
         elif frame_idx == self._current_frame_idx + 1:
-            # Read next frame sequentially (fast!)
+            # Read next frame sequentially
             ret, frame = self._cap.read()
             if not ret:
                 get_logger().warning(f"Failed to read frame {frame_idx} from {self._path}")
@@ -102,7 +100,7 @@ class ProcessedVideoClip(Clip):
         # Convert to float32 for consistency with other clips
         frame = frame.astype(np.float32)
         self._last_frame = frame
-        return frame.copy()
+        return frame
 
     def close(self):
         """Close the video file"""
