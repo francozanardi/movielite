@@ -30,7 +30,7 @@ class TextClip(Clip):
             >>> from pictex import Canvas, LinearGradient, Shadow
             >>> canvas = (
             ...     Canvas()
-            ...     .font_family("Arial.ttf")
+            ...     .font_family("Arial")
             ...     .font_size(60)
             ...     .color("white")
             ...     .padding(20)
@@ -60,7 +60,7 @@ class TextClip(Clip):
 
     def get_frame(self, t_rel: float) -> np.ndarray:
         """Get the rendered text frame (same for all times)"""
-        return self._image.copy()
+        return self._image#.copy()
 
     def _get_default_canvas(self) -> 'Canvas':
         """Get a default canvas with basic styling"""

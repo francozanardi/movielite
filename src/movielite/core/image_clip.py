@@ -38,7 +38,7 @@ class ImageClip(Clip):
 
     def get_frame(self, t_rel: float) -> np.ndarray:
         """Get the image frame (same for all times)"""
-        return self._image.copy()
+        return self._image#.copy()
 
     @classmethod
     def from_color(cls, color: tuple, size: tuple, start: float = 0, duration: float = 5.0) -> 'ImageClip':
