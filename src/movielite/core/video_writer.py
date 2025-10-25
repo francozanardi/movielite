@@ -238,22 +238,46 @@ class VideoWriter:
             raise ValueError("No video clips to compose")
 
         # Sort by start time
-        sorted_clips = sorted(video_clips, key=lambda c: c.start)
+        sorted_clips: list[Clip] = sorted(video_clips, key=lambda c: c.start)
 
         if len(sorted_clips) == 1:
-            # Single video: just trim it
+            # Single video: need to create proper canvas with timing
             clip = sorted_clips[0]
+
+            # Extract the video segment first
+            filter_parts = []
+
+            # Create blank base video for full duration
+            filter_parts.append(f"color=c=black:s={self._size[0]}x{self._size[1]}:d={self._duration}:r={self._fps}[base]")
+
+            # Trim video and set timing
+            filter_parts.append(f"[0:v]setpts=PTS-STARTPTS+{clip.start}/TB[v0]")
+
+            # Overlay at the correct time
+            filter_parts.append(
+                f"[base][v0]overlay=x=0:y=0:enable='between(t,{clip.start},{clip.end})'[out]"
+            )
+
+            # Extract and delay audio
+            filter_parts.append(f"[0:a]adelay={int(clip.start * 1000)}|{int(clip.start * 1000)}[a0]")
+
+            filter_complex = ";".join(filter_parts)
+
             cmd = [
                 "ffmpeg", "-y",
-                "-ss", str(clip._offset),  # Start position in source
+                "-ss", str(clip._offset),
+                "-t", str(clip.duration),
                 "-i", clip._path,
-                "-t", str(clip.duration),  # Duration to extract
+                "-filter_complex", filter_complex,
+                "-map", "[out]",
+                "-map", "[a0]",
                 "-c:v", "libx264",
                 "-preset", _get_ffmpeg_libx264_preset(video_quality),
                 "-crf", _get_ffmpeg_libx264_crf(video_quality),
                 "-c:a", "aac",
                 "-b:a", "192k",
                 "-movflags", "+faststart",
+                "-pix_fmt", "yuv420p",
                 output_path,
                 "-loglevel", "error",
                 "-hide_banner"
@@ -288,6 +312,15 @@ class VideoWriter:
             )
             current_layer = next_layer
 
+        # Mix audio: delay each audio track and mix them
+        for i, clip in enumerate(sorted_clips):
+            delay_ms = int(clip.start * 1000)
+            filter_parts.append(f"[{i}:a]adelay={delay_ms}|{delay_ms}[a{i}]")
+
+        # Mix all delayed audio tracks
+        audio_inputs = "".join(f"[a{i}]" for i in range(len(sorted_clips)))
+        filter_parts.append(f"{audio_inputs}amix=inputs={len(sorted_clips)}:duration=longest[aout]")
+
         filter_complex = ";".join(filter_parts)
 
         cmd = [
@@ -296,9 +329,12 @@ class VideoWriter:
             *inputs,
             "-filter_complex", filter_complex,
             "-map", "[out]",
+            "-map", "[aout]",
             "-c:v", "libx264",
             "-preset", _get_ffmpeg_libx264_preset(video_quality),
             "-crf", _get_ffmpeg_libx264_crf(video_quality),
+            "-c:a", "aac",
+            "-b:a", "192k",
             "-movflags", "+faststart",
             "-pix_fmt", "yuv420p",
             output_path,
