@@ -325,7 +325,6 @@ class VideoWriter:
 
         cmd = [
             "ffmpeg", "-y",
-            "-f", "lavfi", "-i", f"color=c=black:s={self._size[0]}x{self._size[1]}:d={self._duration}:r={self._fps}",
             *inputs,
             "-filter_complex", filter_complex,
             "-map", "[out]",
