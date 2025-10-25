@@ -33,7 +33,7 @@ class ImageClip(Clip):
             else:
                 img = cv2.cvtColor(source, cv2.COLOR_RGB2BGRA)
 
-        self._image = img.astype(np.float32)
+        self._image = img.astype(np.uint8)
         self._size = self._image.shape[1], self._image.shape[0]
 
     def get_frame(self, t_rel: float) -> np.ndarray:

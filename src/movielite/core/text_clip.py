@@ -53,7 +53,7 @@ class TextClip(Clip):
         # Convert to numpy array in BGRA format (OpenCV compatible)
         img_bgra = rendered.to_numpy(mode='BGRA')
 
-        self._image = img_bgra.astype(np.float32)
+        self._image = img_bgra.astype(np.uint8)
         self._size = self._image.shape[1], self._image.shape[0]
 
         get_logger().debug(f"TextClip created: text='{text}', size={self._size}, shape={self._image.shape}")

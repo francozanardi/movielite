@@ -98,7 +98,6 @@ class ProcessedVideoClip(Clip):
             self._current_frame_idx = frame_idx
 
         # Convert to float32 for consistency with other clips
-        frame = frame.astype(np.float32)
         self._last_frame = frame
         return frame
 
