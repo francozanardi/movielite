@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import numba
 from abc import ABC, abstractmethod
 from typing import Callable, Union, Tuple, Optional
 import inspect
@@ -210,22 +211,20 @@ class Clip(ABC):
         x, y = self.position(t_rel)
         x, y = int(x), int(y)
         s = self.scale(t_rel)
-        alpha_val = self.opacity(t_rel)
+        alpha_multiplier = self.opacity(t_rel)
 
         # Scale frame
-        interpolation_method = cv2.INTER_AREA if s < 1.0 else cv2.INTER_CUBIC
-        scaled_w, scaled_h = int(self._size[0] * s), int(self._size[1] * s)
-        frame = cv2.resize(frame, (scaled_w, scaled_h), interpolation=interpolation_method)
-        frame = np.clip(frame, 0.0, 255.0)
+        if s != 1.0:
+            interpolation_method = cv2.INTER_AREA if s < 1.0 else cv2.INTER_CUBIC
+            scaled_w, scaled_h = int(self._size[0] * s), int(self._size[1] * s)
+            frame = cv2.resize(frame, (scaled_w, scaled_h), interpolation=interpolation_method)
+            frame = np.clip(frame, 0.0, 255.0)
 
-        # Ensure BGRA format
+        # TODO: this shouldn't happen, but if it does, add alpha channel
+        # Plus, it could be optimized
         if frame.shape[2] == 3:
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
-            # cv2.cvtColor sets alpha to 0, we need to set it to 255 (opaque)
             frame[:, :, 3] = 255.0
-
-        # Apply opacity
-        frame[:, :, 3] = frame[:, :, 3] * alpha_val
 
         H, W = bg.shape[:2]
         h, w = frame.shape[:2]
@@ -239,7 +238,7 @@ class Clip(ABC):
         # Check if frame is outside background
         if y1_bg >= y2_bg or x1_bg >= x2_bg:
             return bg
-
+        
         # Frame coordinates
         y1_fr = y1_bg - y
         x1_fr = x1_bg - x
@@ -249,22 +248,85 @@ class Clip(ABC):
         # Alpha blending
         roi = bg[y1_bg:y2_bg, x1_bg:x2_bg]
         sub_fr = frame[y1_fr:y2_fr, x1_fr:x2_fr]
-        frame_alpha = sub_fr[..., 3:4] / 255.0
-        roi_float = roi.astype(np.float32) if roi.dtype != np.float32 else roi
 
         if bg.shape[2] == 3:
             # Background is BGR format
-            blended_roi = sub_fr[..., :3] * frame_alpha + roi_float * (1.0 - frame_alpha)
+            blend_bgr_with_bgra_inplace(roi, sub_fr, alpha_multiplier)
         else:
             # Background is BGRA format
-            bg_alpha = roi[..., 3:4] / 255.0
-            final_alpha = frame_alpha + bg_alpha * (1.0 - frame_alpha)
+            blend_bgra_with_bgra_inplace(roi, sub_fr, alpha_multiplier)
 
-            blended_rgb = (sub_fr[..., :3] * frame_alpha + roi_float[..., :3] * bg_alpha * (1.0 - frame_alpha)) / np.clip(final_alpha, 1e-6, 1.0)
-            blended_alpha = final_alpha * 255.0
-            blended_roi = np.concatenate([blended_rgb, blended_alpha], axis=-1)
-
-        final_roi = np.clip(blended_roi, 0, 255)
-        bg[y1_bg:y2_bg, x1_bg:x2_bg] = final_roi.astype(bg.dtype)
 
         return bg
+
+@numba.jit(nopython=True, cache=True)
+def blend_bgr_with_bgra_inplace(background_bgr, foreground_bgra, opacity_multiplier):
+    """
+    Blends foreground (BGRA) over background (BGR).
+    Modifies background_bgra in-place.
+    """
+    for y in range(background_bgr.shape[0]):
+        for x in range(background_bgr.shape[1]):
+            a = (foreground_bgra[y, x, 3] / 255.0) * opacity_multiplier
+            if a <= 0:
+                continue
+
+            if a >= 1:
+                background_bgr[y, x, 0] = foreground_bgra[y, x, 0]
+                background_bgr[y, x, 1] = foreground_bgra[y, x, 1]
+                background_bgr[y, x, 2] = foreground_bgra[y, x, 2]
+                continue
+
+            inv_a = 1.0 - a
+
+            res_0 = foreground_bgra[y, x, 0] * a + background_bgr[y, x, 0] * inv_a
+            background_bgr[y, x, 0] = min(255.0, max(0.0, res_0))
+
+            res_1 = foreground_bgra[y, x, 1] * a + background_bgr[y, x, 1] * inv_a
+            background_bgr[y, x, 1] = min(255.0, max(0.0, res_1))
+
+            res_2 = foreground_bgra[y, x, 2] * a + background_bgr[y, x, 2] * inv_a
+            background_bgr[y, x, 2] = min(255.0, max(0.0, res_2))
+
+@numba.jit(nopython=True, cache=True)
+def blend_bgra_with_bgra_inplace(background_bgra, foreground_bgra, opacity_multiplier):
+    """
+    Blends foreground over background for two RGBA layers.
+    Modifies background_bgra in-place.
+    """
+    for y in range(background_bgra.shape[0]):
+        for x in range(background_bgra.shape[1]):
+            fg_a = (foreground_bgra[y, x, 3] / 255.0) * opacity_multiplier
+
+            if fg_a <= 0:
+                continue
+
+            if fg_a >= 1.0:
+                background_bgra[y, x, 0] = foreground_bgra[y, x, 0]
+                background_bgra[y, x, 1] = foreground_bgra[y, x, 1]
+                background_bgra[y, x, 2] = foreground_bgra[y, x, 2]
+                background_bgra[y, x, 3] = 255.0
+                continue
+
+            bg_a = background_bgra[y, x, 3] / 255.0
+
+            out_a = fg_a + bg_a * (1.0 - fg_a)
+
+            if out_a < 1e-6:
+                background_bgra[y, x, 0] = 0.0
+                background_bgra[y, x, 1] = 0.0
+                background_bgra[y, x, 2] = 0.0
+                background_bgra[y, x, 3] = 0.0
+                continue
+
+            fg_r, fg_g, fg_b = foreground_bgra[y, x, 2], foreground_bgra[y, x, 1], foreground_bgra[y, x, 0]
+            bg_r, bg_g, bg_b = background_bgra[y, x, 2], background_bgra[y, x, 1], background_bgra[y, x, 0]
+
+            out_r = (fg_r * fg_a + bg_r * bg_a * (1.0 - fg_a)) / out_a
+            out_g = (fg_g * fg_a + bg_g * bg_a * (1.0 - fg_a)) / out_a
+            out_b = (fg_b * fg_a + bg_b * bg_a * (1.0 - fg_a)) / out_a
+
+            background_bgra[y, x, 2] = min(255.0, max(0.0, out_r))
+            background_bgra[y, x, 1] = min(255.0, max(0.0, out_g))
+            background_bgra[y, x, 0] = min(255.0, max(0.0, out_b))
+            background_bgra[y, x, 3] = out_a * 255.0

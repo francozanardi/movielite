@@ -404,7 +404,7 @@ class VideoWriter:
         from .processed_video_clip import ProcessedVideoClip
 
         # Convert any VideoClip to ProcessedVideoClip for frame rendering
-        clips_to_render = []
+        clips_to_render: list[Clip] = []
         for clip in self._clips:
             if isinstance(clip, VideoClip) and not isinstance(clip, ProcessedVideoClip):
                 processed = ProcessedVideoClip.from_video_clip(clip)
@@ -435,7 +435,7 @@ class VideoWriter:
         num_frames_to_render = end_frame - start_frame
         with tqdm(total=num_frames_to_render, desc="Rendering video frames") as pbar:
             for frame_idx in range(start_frame, end_frame):
-                # Create blank frame
+                # Create black frame
                 frame = np.zeros((self._size[1], self._size[0], 3), dtype=np.float32)
 
                 # Render all clips onto the frame
