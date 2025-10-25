@@ -108,6 +108,8 @@ class VideoWriter:
 
         # Full render path (reads frames)
         get_logger().info("Using full render path: reading frames")
+        # Extract audio from video clips for full render path
+        self._extract_video_audio()
         total_frames = int(self._duration * self._fps)
         temp_dir = tempfile.mkdtemp()
 
@@ -146,6 +148,29 @@ class VideoWriter:
             shutil.rmtree(temp_dir)
 
         get_logger().info(f"Video saved to: {self._output}")
+
+    def _extract_video_audio(self) -> None:
+        """
+        Extract audio from video clips and add them to the audio mix.
+
+        This ensures that when using ProcessedVideoClip (which only reads frames),
+        the audio from the video is still included in the final output.
+        """
+        from .video_clip import VideoClip
+        from .processed_video_clip import ProcessedVideoClip
+
+        for clip in self._clips:
+            # Only extract audio from video clips
+            if isinstance(clip, ProcessedVideoClip):
+                # Create an AudioClip from this video
+                audio_clip = AudioClip(
+                    path=clip._path,
+                    start=clip.start,
+                    duration=clip.duration,
+                    offset=clip._offset
+                )
+                self._audio_clips.append(audio_clip)
+                get_logger().debug(f"Extracted audio from video clip: {clip._path}")
 
     def _can_use_fast_path(self) -> bool:
         """
@@ -355,10 +380,18 @@ class VideoWriter:
 
         # Convert any VideoClip to ProcessedVideoClip for frame rendering
         clips_to_render: list[Clip] = []
+
         for clip in overlay_clips:
-            if isinstance(clip, VideoClip) and not isinstance(clip, ProcessedVideoClip):
-                processed = ProcessedVideoClip.from_video_clip(clip)
-                clips_to_render.append(processed)
+            if isinstance(clip, ProcessedVideoClip):
+                clips_to_render.append(clip)
+                # Extract audio from this video clip
+                audio_clip = AudioClip(
+                    path=clip._path,
+                    start=clip.start,
+                    duration=clip.duration,
+                    offset=clip._offset
+                )
+                self._audio_clips.append(audio_clip)
             else:
                 clips_to_render.append(clip)
 
