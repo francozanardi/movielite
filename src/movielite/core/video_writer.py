@@ -55,6 +55,9 @@ class VideoWriter:
         Returns:
             Self for chaining
         """
+        if not isinstance(clip, Clip):
+            raise TypeError(f"Expected Clip instance, got {type(clip)}")
+        
         self._clips.append(clip)
         return self
 

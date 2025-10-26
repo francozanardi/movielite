@@ -138,7 +138,7 @@ class VideoClip(Clip):
         new_clip._position = self._position
         new_clip._opacity = self._opacity
         new_clip._scale = self._scale
-        new_clip._frame_transform = self._frame_transform
+        new_clip._frame_transforms = self._frame_transforms.copy()
         new_clip._cap = None
         new_clip._current_frame_idx = -1
         new_clip._last_frame = None

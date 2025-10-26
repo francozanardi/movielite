@@ -26,7 +26,7 @@ class Clip(ABC):
         self._position: Callable[[float], Tuple[int, int]] = lambda t: (0, 0)
         self._opacity: Callable[[float], float] = lambda t: 1
         self._scale: Callable[[float], float] = lambda t: 1
-        self._frame_transform: Optional[Callable[[np.ndarray, float], np.ndarray]] = None
+        self._frame_transforms: list[Callable[[np.ndarray, float], np.ndarray]] = []
         self._has_any_transform = False
 
     def set_position(self, value: Union[Callable[[float], Tuple[int, int]], Tuple[int, int]]) -> 'Clip':
@@ -71,6 +71,7 @@ class Clip(ABC):
         self._has_any_transform = True
         return self
 
+    # TODO: this is not working. Fix it.
     def set_size(self, width: Optional[int] = None, height: Optional[int] = None) -> 'Clip':
         """
         Set the size of the clip, maintaining aspect ratio if only one dimension is provided.
@@ -115,12 +116,18 @@ class Clip(ABC):
         self._duration = duration
         return self
 
-    def transform_frame(self, callback: Callable[[np.ndarray, float], np.ndarray]) -> 'Clip':
+    def add_transform(self, callback: Callable[[np.ndarray, float], np.ndarray]) -> 'Clip':
         """
         Apply a custom transformation to each frame at render time.
+        Multiple transformations can be chained by calling this method multiple times.
+        They will be applied in the order they were added.
 
         The callback receives the frame (np.ndarray) and relative time (float),
         and should return the transformed frame.
+
+        IMPORTANT:
+         The frame received and returned must be in BGRA format (4 channels) and uint8 type.
+         The callback doesn't receive a copy of the frame, so modifications must be done carefully.
 
         Args:
             callback: Function that takes (frame, time) and returns transformed frame
@@ -132,10 +139,26 @@ class Clip(ABC):
             >>> def make_sepia(frame, t):
             >>>     # Apply sepia filter
             >>>     return sepia_filter(frame)
-            >>> clip.transform_frame(make_sepia)
+            >>> def add_vignette(frame, t):
+            >>>     # Apply vignette effect
+            >>>     return vignette_filter(frame)
+            >>> clip.add_transform(make_sepia).add_transform(add_vignette)
         """
-        self._frame_transform = callback
+        self._frame_transforms.append(callback)
         self._has_any_transform = True
+        return self
+    
+    def set_start(self, start: float) -> 'Clip':
+        """
+        Set the start time of the clip.
+
+        Args:
+            start: New start time in seconds
+
+        Returns:
+            Self for chaining
+        """
+        self._start = start
         return self
 
     def _save_as_function(self, value: Union[Callable, float, Tuple[int, int]]) -> Callable:
@@ -213,12 +236,16 @@ class Clip(ABC):
         # Assumptions: it is BGRA format, uint8 type
         frame = self.get_frame(t_rel)
 
-        # Apply custom frame transformation if set
-        if self._frame_transform is not None:
-            frame = self._frame_transform(frame, t_rel)
+        # Apply custom frame transformations if set
+        for transform in self._frame_transforms:
+            frame = transform(frame, t_rel)
 
         x, y = self.position(t_rel)
         x, y = int(x), int(y)
+
+        # TODO: I think that for fixed scales/opacity we should do the transformation before rendering
+        # so get_frame() would return the already transformed frame...
+        # The other option is to cache the transformed frames if the clip is static (it would only be applicable for scale).
         s = self.scale(t_rel)
         alpha_multiplier = self.opacity(t_rel)
 
