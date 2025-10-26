@@ -181,7 +181,7 @@ class Clip(ABC):
         """
         Get the frame at a relative time within the clip.
 
-        IMPORTANT: the frame returned should be BGRA format (4 channels) and uint8 type.
+        IMPORTANT: the frame returned must be BGRA format (4 channels) and uint8 type.
 
         Args:
             t_rel: Relative time within the clip (0 to duration)
