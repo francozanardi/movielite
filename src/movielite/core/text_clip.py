@@ -2,6 +2,7 @@ import numpy as np
 from typing import Optional
 from .clip import Clip
 from .logger import get_logger
+import cv2
 
 try:
     from pictex import Canvas
@@ -49,11 +50,10 @@ class TextClip(Clip):
 
         # Render the text to get the image
         rendered = self._canvas.render(text)
-
-        # Convert to numpy array in BGRA format (OpenCV compatible)
         img_bgra = rendered.to_numpy(mode='BGRA')
+        img_bgr = cv2.cvtColor(img_bgra, cv2.COLOR_BGRA2BGR)
 
-        self._image = img_bgra.astype(np.uint8)
+        self._image = img_bgr.astype(np.uint8)
         self._size = self._image.shape[1], self._image.shape[0]
 
         get_logger().debug(f"TextClip created: text='{text}', size={self._size}, shape={self._image.shape}")

@@ -25,13 +25,13 @@ class ImageClip(Clip):
             img = cv2.imread(source, cv2.IMREAD_UNCHANGED)
             if img is None:
                 raise FileNotFoundError(f"Image not found: {source}")
-            if img.shape[2] == 3:
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
+            if img.shape[2] == 4:
+                img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
         else:
             if source.shape[2] == 4:
-                img = cv2.cvtColor(source, cv2.COLOR_RGBA2BGRA)
+                img = cv2.cvtColor(source, cv2.COLOR_RGBA2BGR)
             else:
-                img = cv2.cvtColor(source, cv2.COLOR_RGB2BGRA)
+                img = cv2.cvtColor(source, cv2.COLOR_RGB2BGR)
 
         self._image = img.astype(np.uint8)
         self._size = self._image.shape[1], self._image.shape[0]

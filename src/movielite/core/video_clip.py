@@ -75,7 +75,7 @@ class VideoClip(Clip):
             ret, frame = self._cap.read()
             if not ret:
                 get_logger().warning(f"Failed to read frame {frame_idx} from {self._path}")
-                return np.zeros((self._size[1], self._size[0], 3), dtype=np.float32)
+                return np.zeros((self._size[1], self._size[0], 3), dtype=np.uint8)
             self._current_frame_idx = frame_idx
         elif frame_idx > self._current_frame_idx and frame_idx - self._current_frame_idx <= 5:
             # Skip a few frames (still relatively fast)
@@ -83,7 +83,7 @@ class VideoClip(Clip):
                 ret, frame = self._cap.read()
                 if not ret:
                     get_logger().warning(f"Failed to read frame {frame_idx} from {self._path}")
-                    return np.zeros((self._size[1], self._size[0], 3), dtype=np.float32)
+                    return np.zeros((self._size[1], self._size[0], 3), dtype=np.uint8)
             self._current_frame_idx = frame_idx
         else:
             # Need to seek (slower, but necessary for random access)
@@ -91,10 +91,9 @@ class VideoClip(Clip):
             ret, frame = self._cap.read()
             if not ret:
                 get_logger().warning(f"Failed to read frame {frame_idx} from {self._path}")
-                return np.zeros((self._size[1], self._size[0], 3), dtype=np.float32)
+                return np.zeros((self._size[1], self._size[0], 3), dtype=np.uint8)
             self._current_frame_idx = frame_idx
 
-        # Convert to float32 for consistency with other clips
         self._last_frame = frame
         return frame
 
