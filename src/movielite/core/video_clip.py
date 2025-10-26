@@ -5,6 +5,7 @@ from typing import Optional
 from .clip import Clip
 from .logger import get_logger
 
+# TODO: it doesn't support transparency, we must add a new VideoClip subclass that supports alpha channel
 class VideoClip(Clip):
     """
     A video clip that loads and processes frames.
