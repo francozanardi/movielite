@@ -2,13 +2,16 @@
 Basic usage example of movielite
 """
 
-from movielite import VideoClip, ImageClip, TextClip, AudioClip, VideoWriter, concatenate_videoclips
+from movielite import VideoClip, VideoClip, ImageClip, TextClip, AudioClip, VideoWriter
 from movielite.fx import fade_in, fade_out, resize
 
 def example_1_simple_overlay():
     """Add a text overlay to a video"""
     # Load background video
-    bg = VideoClip("input.mp4")
+    scene_1 = ImageClip("scene_1_image.png", start=0, duration=5.0)
+    bg = VideoClip("input.mp4", start=scene_1.end)
+    scene_2 = ImageClip("scene_2_image.png", start=bg.end, duration=5.0)
+    bg2 = VideoClip("input.mp4", start=scene_2.end)
 
     # Add text overlay
     text = TextClip("Hello World!", start=2, duration=3)
@@ -18,6 +21,9 @@ def example_1_simple_overlay():
     # Write to file
     writer = VideoWriter("output_with_text.mp4", fps=bg.fps, size=bg.size)
     writer.add_clip(bg)
+    writer.add_clip(bg2)
+    writer.add_clip(scene_1)
+    writer.add_clip(scene_2)
     writer.add_clip(text)
     writer.write(use_multiprocessing=False)
 
@@ -121,8 +127,8 @@ if __name__ == "__main__":
     print("movielite examples")
     print("Uncomment the example you want to run")
 
-    example_images()
-    # example_1_simple_overlay()
+    # example_images()
+    example_1_simple_overlay()
     # example_2_concatenate_videos()
     # example_3_extract_and_resize()
     # example_4_audio_overlay()

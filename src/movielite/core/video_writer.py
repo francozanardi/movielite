@@ -1,4 +1,3 @@
-import cv2
 import numpy as np
 import multiprocess as mp
 import subprocess
@@ -12,6 +11,7 @@ from .clip import Clip
 from .audio_clip import AudioClip
 from .enums import VideoQuality
 from .logger import get_logger
+from .video_clip import VideoClip
 
 class VideoWriter:
     """
@@ -21,10 +21,6 @@ class VideoWriter:
     - Rendering visual clips (video, image, text, composite, etc.)
     - Mixing audio clips
     - Encoding the final video with multiprocessing support
-
-    Architecture:
-    - VideoClip (no transformations) → Fast path with ffmpeg filters
-    - ProcessedVideoClip (with transformations) → Slow path with frame reading
     """
 
     def __init__(self, output_path: str, fps: float = 30, size: Tuple[int, int] = (1920, 1080), duration: Optional[float] = None):
@@ -99,15 +95,6 @@ class VideoWriter:
         if self._duration <= 0:
             raise ValueError(f"Invalid duration: {self._duration}")
 
-        # Check if we can use fast path (ffmpeg-only, no frame reading)
-        if self._can_use_fast_path():
-            get_logger().info("Using fast path: ffmpeg composition (no frame reading)")
-            self._render_fast_path(video_quality)
-            get_logger().info(f"Video saved to: {self._output}")
-            return
-
-        # Full render path (reads frames)
-        get_logger().info("Using full render path: reading frames")
         # Extract audio from video clips for full render path
         self._extract_video_audio()
         total_frames = int(self._duration * self._fps)
@@ -156,13 +143,10 @@ class VideoWriter:
         This ensures that when using ProcessedVideoClip (which only reads frames),
         the audio from the video is still included in the final output.
         """
-        from .video_clip import VideoClip
-        from .processed_video_clip import ProcessedVideoClip
 
         for clip in self._clips:
             # Only extract audio from video clips
-            if isinstance(clip, ProcessedVideoClip):
-                # Create an AudioClip from this video
+            if isinstance(clip, VideoClip):
                 audio_clip = AudioClip(
                     path=clip._path,
                     start=clip.start,
@@ -171,296 +155,6 @@ class VideoWriter:
                 )
                 self._audio_clips.append(audio_clip)
                 get_logger().debug(f"Extracted audio from video clip: {clip._path}")
-
-    def _can_use_fast_path(self) -> bool:
-        """
-        Check if we can use the fast path with ffmpeg filters.
-
-        Fast path requirements:
-        - NO ProcessedVideoClip instances (they require frame-level processing)
-        - At least one VideoClip as base
-
-        If these conditions are met, we can compose everything with ffmpeg
-        without reading any video frames.
-        """
-        if not self._clips:
-            return False
-
-        from .processed_video_clip import ProcessedVideoClip
-        from .video_clip import VideoClip
-
-        # Check if ANY clip is a ProcessedVideoClip
-        # for clip in self._clips:
-        #     if isinstance(clip, ProcessedVideoClip):
-        #         get_logger().debug("Fast path: DISABLED (contains ProcessedVideoClip)")
-        #         return False
-
-        # Need at least one VideoClip as base
-        has_video_clip = any(isinstance(c, VideoClip) for c in self._clips)
-        if not has_video_clip:
-            get_logger().debug("Fast path: DISABLED (no VideoClip found)")
-            return False
-
-        get_logger().debug("Fast path: ENABLED")
-        return True
-
-    def _render_fast_path(self, video_quality: VideoQuality) -> None:
-        """
-        Render using ffmpeg filters only (no frame reading).
-
-        Strategy:
-        1. Compose all VideoClips using ffmpeg filter_complex
-        2. Render non-VideoClips (text, images) onto transparent background
-        3. Overlay everything together
-        4. Mix audio
-        """
-        from .video_clip import VideoClip
-
-        # Separate VideoClips from other clips
-        video_clips = [c for c in self._clips if isinstance(c, VideoClip)]
-        other_clips = [c for c in self._clips if not isinstance(c, VideoClip)]
-
-        temp_dir = tempfile.mkdtemp()
-
-        try:
-            # Compose all VideoClips with ffmpeg
-            composed_video_path = os.path.join(temp_dir, "composed_videos.mp4")
-            self._compose_videos_with_ffmpeg(video_clips, composed_video_path, video_quality)
-
-            # Render non-video overlays if any
-            if other_clips:
-                overlays_path = os.path.join(temp_dir, "overlays.mov")
-                self._render_overlays_only(other_clips, overlays_path, video_quality)
-
-                # Overlay everything together
-                final_video = os.path.join(temp_dir, "final_with_overlays.mp4")
-                self._overlay_on_video(composed_video_path, overlays_path, final_video, video_quality)
-
-                # Mix audio
-                self._mux_audio(final_video, self._output)
-            else:
-                # No overlays, just mix audio
-                self._mux_audio(composed_video_path, self._output)
-
-        finally:
-            shutil.rmtree(temp_dir)
-
-    def _compose_videos_with_ffmpeg(self, video_clips: List, output_path: str, video_quality: VideoQuality) -> None:
-        """
-        Compose multiple VideoClips using ffmpeg filter_complex.
-
-        Generates a filter_complex that:
-        1. Trims each video to its offset/duration
-        2. Overlays them at their respective positions and times
-        3. Preserves audio from all clips
-
-        Args:
-            video_clips: List of VideoClip instances
-            output_path: Where to save the composed video
-            video_quality: Quality preset for encoding
-        """
-        if not video_clips:
-            raise ValueError("No video clips to compose")
-
-        # Sort by start time
-        sorted_clips: list[Clip] = sorted(video_clips, key=lambda c: c.start)
-
-        if len(sorted_clips) == 1:
-            # Single video: need to create proper canvas with timing
-            clip = sorted_clips[0]
-
-            # Extract the video segment first
-            filter_parts = []
-
-            # Create blank base video for full duration
-            filter_parts.append(f"color=c=black:s={self._size[0]}x{self._size[1]}:d={self._duration}:r={self._fps}[base]")
-
-            # Trim video and set timing
-            filter_parts.append(f"[0:v]setpts=PTS-STARTPTS+{clip.start}/TB[v0]")
-
-            # Overlay at the correct time
-            filter_parts.append(
-                f"[base][v0]overlay=x=0:y=0:enable='between(t,{clip.start},{clip.end})'[out]"
-            )
-
-            # Extract and delay audio
-            filter_parts.append(f"[0:a]adelay={int(clip.start * 1000)}|{int(clip.start * 1000)}[a0]")
-
-            filter_complex = ";".join(filter_parts)
-
-            cmd = [
-                "ffmpeg", "-y",
-                "-ss", str(clip._offset),
-                "-t", str(clip.duration),
-                "-i", clip._path,
-                "-filter_complex", filter_complex,
-                "-map", "[out]",
-                "-map", "[a0]",
-                "-c:v", "libx264",
-                "-preset", _get_ffmpeg_libx264_preset(video_quality),
-                "-crf", _get_ffmpeg_libx264_crf(video_quality),
-                "-c:a", "aac",
-                "-b:a", "192k",
-                "-movflags", "+faststart",
-                "-pix_fmt", "yuv420p",
-                output_path,
-                "-loglevel", "error",
-                "-hide_banner"
-            ]
-            subprocess.run(cmd, check=True)
-            return
-
-        # Multiple videos: build filter_complex
-        # Strategy: Create a blank canvas, then overlay each video at its time
-
-        inputs = []
-        filter_parts = []
-
-        # Add all video inputs
-        for i, clip in enumerate(sorted_clips):
-            inputs.extend(["-ss", str(clip._offset), "-t", str(clip.duration), "-i", clip._path])
-
-        # Create blank base video
-        filter_parts.append(f"color=c=black:s={self._size[0]}x{self._size[1]}:d={self._duration}:r={self._fps}[base]")
-
-        # Overlay each video on top
-        current_layer = "base"
-        for i, clip in enumerate(sorted_clips):
-            # Trim and set timing for this video
-            filter_parts.append(f"[{i}:v]setpts=PTS-STARTPTS+{clip.start}/TB[v{i}]")
-
-            # Overlay it
-            next_layer = f"tmp{i}" if i < len(sorted_clips) - 1 else "out"
-            # Enable overlay only during the clip's time range
-            filter_parts.append(
-                f"[{current_layer}][v{i}]overlay=x=0:y=0:enable='between(t,{clip.start},{clip.end})'[{next_layer}]"
-            )
-            current_layer = next_layer
-
-        # Mix audio: delay each audio track and mix them
-        for i, clip in enumerate(sorted_clips):
-            delay_ms = int(clip.start * 1000)
-            filter_parts.append(f"[{i}:a]adelay={delay_ms}|{delay_ms}[a{i}]")
-
-        # Mix all delayed audio tracks
-        audio_inputs = "".join(f"[a{i}]" for i in range(len(sorted_clips)))
-        filter_parts.append(f"{audio_inputs}amix=inputs={len(sorted_clips)}:duration=longest[aout]")
-
-        filter_complex = ";".join(filter_parts)
-
-        cmd = [
-            "ffmpeg", "-y",
-            *inputs,
-            "-filter_complex", filter_complex,
-            "-map", "[out]",
-            "-map", "[aout]",
-            "-c:v", "libx264",
-            "-preset", _get_ffmpeg_libx264_preset(video_quality),
-            "-crf", _get_ffmpeg_libx264_crf(video_quality),
-            "-c:a", "aac",
-            "-b:a", "192k",
-            "-movflags", "+faststart",
-            "-pix_fmt", "yuv420p",
-            output_path,
-            "-loglevel", "error",
-            "-hide_banner"
-        ]
-
-        get_logger().debug(f"FFmpeg filter_complex: {filter_complex}")
-        subprocess.run(cmd, check=True)
-
-    def _render_overlays_only(self, overlay_clips: List[Clip], output_path: str, video_quality: VideoQuality) -> None:
-        """
-        Render non-video clips (text, images) onto a transparent background.
-
-        Uses PNG codec to preserve alpha channel for proper overlay composition.
-        """
-        from .video_clip import VideoClip
-        from .processed_video_clip import ProcessedVideoClip
-
-        # Convert any VideoClip to ProcessedVideoClip for frame rendering
-        clips_to_render: list[Clip] = []
-
-        for clip in overlay_clips:
-            if isinstance(clip, ProcessedVideoClip):
-                clips_to_render.append(clip)
-                # Extract audio from this video clip
-                audio_clip = AudioClip(
-                    path=clip._path,
-                    start=clip.start,
-                    duration=clip.duration,
-                    offset=clip._offset
-                )
-                self._audio_clips.append(audio_clip)
-            else:
-                clips_to_render.append(clip)
-
-        total_frames = int(self._duration * self._fps)
-
-        # Use QuickTime Animation (qtrle) codec to preserve alpha
-        # PNG is lossless but creates huge files, qtrle is a good compromise
-        ffmpeg_cmd = [
-            "ffmpeg", "-y",
-            "-f", "rawvideo",
-            "-vcodec", "rawvideo",
-            "-pix_fmt", "bgra",
-            "-s", f"{self._size[0]}x{self._size[1]}",
-            "-r", str(self._fps),
-            "-i", "-",
-            "-c:v", "qtrle",  # QuickTime Animation codec with alpha
-            output_path,
-            "-loglevel", "error",
-            "-hide_banner"
-        ]
-
-        process = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE)
-
-        with tqdm(total=total_frames, desc="Rendering overlays") as pbar:
-            for frame_idx in range(total_frames):
-                # Create transparent frame
-                frame = np.zeros((self._size[1], self._size[0], 4), dtype=np.float32)
-
-                current_time = frame_idx / self._fps
-                for clip in clips_to_render:
-                    frame = clip.render(frame, current_time)
-
-                process.stdin.write(frame.astype(np.uint8).tobytes())
-                pbar.update(1)
-
-        process.stdin.close()
-        process.wait()
-
-        # Close any ProcessedVideoClip instances we created
-        for clip in clips_to_render:
-            if isinstance(clip, ProcessedVideoClip):
-                clip.close()
-
-    def _overlay_on_video(self, base_video_path: str, overlay_path: str, output_path: str, video_quality: VideoQuality) -> None:
-        """
-        Overlay rendered overlays onto the base video using ffmpeg.
-
-        Args:
-            base_video_path: Path to the base video
-            overlay_path: Path to the overlay video (with alpha channel)
-            output_path: Where to save the result
-            video_quality: Quality preset for encoding
-        """
-        cmd = [
-            "ffmpeg", "-y",
-            "-i", base_video_path,
-            "-i", overlay_path,
-            "-filter_complex", "[0:v][1:v]overlay=0:0",
-            "-c:v", "libx264",
-            "-preset", _get_ffmpeg_libx264_preset(video_quality),
-            "-crf", _get_ffmpeg_libx264_crf(video_quality),
-            "-c:a", "copy",
-            "-movflags", "+faststart",
-            output_path,
-            "-loglevel", "error",
-            "-hide_banner"
-        ]
-
-        subprocess.run(cmd, check=True)
 
     def _get_background_clip_and_clips_to_blend(self, clips: list[Clip], current_time: float) -> tuple[Clip | None, list[Clip]]:
         """
@@ -500,20 +194,7 @@ class VideoWriter:
     def _render_range(self, start_frame: int, end_frame: int, part_path: str, video_quality: VideoQuality) -> None:
         """
         Render a range of frames by reading each frame.
-
-        Used in full render path when ProcessedVideoClip is present.
         """
-        from .video_clip import VideoClip
-        from .processed_video_clip import ProcessedVideoClip
-
-        # Convert any VideoClip to ProcessedVideoClip for frame rendering
-        clips_to_render: list[Clip] = []
-        for clip in self._clips:
-            if isinstance(clip, VideoClip) and not isinstance(clip, ProcessedVideoClip):
-                processed = ProcessedVideoClip.from_video_clip(clip)
-                clips_to_render.append(processed)
-            else:
-                clips_to_render.append(clip)
 
         ffmpeg_cmd = [
             "ffmpeg", "-y",
@@ -540,7 +221,7 @@ class VideoWriter:
             for frame_idx in range(start_frame, end_frame):
                 current_time = frame_idx / self._fps
 
-                background_clip, clips_to_blend = self._get_background_clip_and_clips_to_blend(clips_to_render, current_time)
+                background_clip, clips_to_blend = self._get_background_clip_and_clips_to_blend(self._clips, current_time)
                 if background_clip:
                     frame = background_clip.get_frame(current_time - background_clip._start)
                     if clips_to_blend:
@@ -564,8 +245,8 @@ class VideoWriter:
         process.wait()
 
         # Close any ProcessedVideoClip instances we created
-        for clip in clips_to_render:
-            if isinstance(clip, ProcessedVideoClip):
+        for clip in self._clips:
+            if isinstance(clip, VideoClip):
                 clip.close()
 
     def _merge_parts(self, part_paths: List[str], merged_path: str) -> None:

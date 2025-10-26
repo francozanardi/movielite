@@ -7,14 +7,10 @@ def test_core_imports():
     print("Testing core imports...")
     from movielite import (
         Clip,
-        VideoClip,
         ImageClip,
         AudioClip,
         TextClip,
         CompositeClip,
-        VideoComposition,
-        concatenate_videoclips,
-        concatenate_audioclips,
         VideoQuality,
         get_logger,
         set_log_level,

@@ -7,18 +7,16 @@ from .logger import get_logger
 
 class VideoClip(Clip):
     """
-    A lightweight video clip that doesn't load frames.
+    A video clip that loads and processes frames.
 
-    This class only stores metadata (path, fps, size, duration) and is designed
-    for fast video manipulation using FFmpeg filters without pixel-level processing.
-
-    For transformations that require frame-level processing (custom effects, filters),
-    use ProcessedVideoClip instead.
+    This class reads video frames into memory for pixel-level processing.
+    Use this when you need to apply custom transformations, effects, or
+    need direct access to frame data.
     """
 
     def __init__(self, path: str, start: float = 0, duration: Optional[float] = None, offset: float = 0):
         """
-        Load a video clip (metadata only).
+        Load a video clip for frame-level processing.
 
         Args:
             path: Path to the video file
@@ -53,16 +51,64 @@ class VideoClip(Clip):
         # (Clip.__init__ sets _size to (0, 0), so we need to restore it)
         self._size = (self._video_width, self._video_height)
 
-    def get_frame(self, t_rel: float) -> np.ndarray:
-        """
-        VideoClip does not support direct frame access.
+        # Keep VideoCapture open for efficient sequential reading
+        self._cap = None
+        self._current_frame_idx = -1
+        self._last_frame = None
 
-        Use ProcessedVideoClip.from_video_clip() to convert this clip
-        if you need frame-level processing.
-        """
-        raise NotImplementedError(
-            "VideoClip does not load frames. Use ProcessedVideoClip for frame-level processing."
-        )
+    def get_frame(self, t_rel: float) -> np.ndarray:
+        """Get frame at relative time within this clip"""
+        actual_time = t_rel + self._offset
+        frame_idx = int(actual_time * self._fps)
+        frame_idx = max(0, min(frame_idx, self._total_frames - 1))
+
+        # Open capture if not already open
+        if self._cap is None:
+            self._cap = cv2.VideoCapture(self._path)
+            self._current_frame_idx = -1
+            get_logger().debug(f"ProcessedVideoClip: Opened video capture for {self._path}")
+
+        if frame_idx == self._current_frame_idx and self._last_frame is not None:
+            return self._last_frame
+        elif frame_idx == self._current_frame_idx + 1:
+            # Read next frame sequentially
+            ret, frame = self._cap.read()
+            if not ret:
+                get_logger().warning(f"Failed to read frame {frame_idx} from {self._path}")
+                return np.zeros((self._size[1], self._size[0], 3), dtype=np.float32)
+            self._current_frame_idx = frame_idx
+        elif frame_idx > self._current_frame_idx and frame_idx - self._current_frame_idx <= 5:
+            # Skip a few frames (still relatively fast)
+            for _ in range(frame_idx - self._current_frame_idx):
+                ret, frame = self._cap.read()
+                if not ret:
+                    get_logger().warning(f"Failed to read frame {frame_idx} from {self._path}")
+                    return np.zeros((self._size[1], self._size[0], 3), dtype=np.float32)
+            self._current_frame_idx = frame_idx
+        else:
+            # Need to seek (slower, but necessary for random access)
+            self._cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+            ret, frame = self._cap.read()
+            if not ret:
+                get_logger().warning(f"Failed to read frame {frame_idx} from {self._path}")
+                return np.zeros((self._size[1], self._size[0], 3), dtype=np.float32)
+            self._current_frame_idx = frame_idx
+
+        # Convert to float32 for consistency with other clips
+        self._last_frame = frame
+        return frame
+
+    def close(self):
+        """Close the video file"""
+        if self._cap is not None:
+            self._cap.release()
+            self._cap = None
+            self._current_frame_idx = -1
+            self._last_frame = None
+
+    def __del__(self):
+        """Ensure video file is closed when object is destroyed"""
+        self.close()
 
     def subclip(self, start: float, end: float) -> 'VideoClip':
         """
@@ -73,7 +119,7 @@ class VideoClip(Clip):
             end: End time within this clip (seconds)
 
         Returns:
-            New VideoClip instance
+            New ProcessedVideoClip instance
         """
         if start < 0 or end > self.duration or start >= end:
             raise ValueError(f"Invalid subclip range: ({start}, {end}) for clip duration {self.duration}")
@@ -93,37 +139,11 @@ class VideoClip(Clip):
         new_clip._opacity = self._opacity
         new_clip._scale = self._scale
         new_clip._frame_transform = self._frame_transform
+        new_clip._cap = None
+        new_clip._current_frame_idx = -1
+        new_clip._last_frame = None
 
         return new_clip
-
-    def transform_frame(self, callback):
-        """
-        VideoClip does not support frame transformations.
-
-        Use ProcessedVideoClip.from_video_clip() to convert this clip
-        if you need to apply custom frame transformations.
-        """
-        raise NotImplementedError(
-            "VideoClip does not support frame transformations. Use ProcessedVideoClip for custom transformations."
-        )
-
-    def set_position(self, x, y=None):
-        """VideoClip does not support position changes. Use ProcessedVideoClip."""
-        raise NotImplementedError(
-            "VideoClip does not support set_position(). Use ProcessedVideoClip for positioning."
-        )
-
-    def set_opacity(self, opacity):
-        """VideoClip does not support opacity changes. Use ProcessedVideoClip."""
-        raise NotImplementedError(
-            "VideoClip does not support set_opacity(). Use ProcessedVideoClip for opacity changes."
-        )
-
-    def set_scale(self, scale):
-        """VideoClip does not support scale changes. Use ProcessedVideoClip."""
-        raise NotImplementedError(
-            "VideoClip does not support set_scale(). Use ProcessedVideoClip for scaling."
-        )
 
     def _load_metadata(self, path: str) -> None:
         """Load video metadata using cv2.VideoCapture"""
@@ -144,7 +164,7 @@ class VideoClip(Clip):
         self._video_width = w
         self._video_height = h
 
-        get_logger().debug(f"VideoClip loaded (metadata only): {path}, size=({w}, {h}), fps={self._fps}, frames={self._total_frames}")
+        get_logger().debug(f"ProcessedVideoClip loaded: {path}, size=({w}, {h}), fps={self._fps}, frames={self._total_frames}")
         cap.release()
 
     @property
