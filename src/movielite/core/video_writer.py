@@ -50,7 +50,7 @@ class VideoWriter:
         Add a visual clip to the composition.
 
         Args:
-            clip: Clip to add (VideoClip, ImageClip, TextClip, CompositeClip, etc.)
+            clip: Clip to add (VideoClip, ImageClip, TextClip, etc.)
 
         Returns:
             Self for chaining
