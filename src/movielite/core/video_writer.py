@@ -76,8 +76,7 @@ class VideoWriter:
 
     def write(
         self,
-        use_multiprocessing: bool = False,
-        processes: Optional[int] = None,
+        processes: int = 1,
         video_quality: VideoQuality = VideoQuality.MIDDLE
     ) -> None:
         """
@@ -104,8 +103,7 @@ class VideoWriter:
         temp_dir = tempfile.mkdtemp()
 
         try:
-            if use_multiprocessing:
-                processes = processes or mp.cpu_count()
+            if processes > 1:
                 chunk_size = math.ceil(total_frames / processes)
                 part_paths = []
                 jobs = []
@@ -220,7 +218,11 @@ class VideoWriter:
         process = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE)
 
         num_frames_to_render = end_frame - start_frame
+        update_interval = max(1, num_frames_to_render // 50)
+
         with tqdm(total=num_frames_to_render, desc="Rendering video frames") as pbar:
+            frames_since_update = 0
+
             for frame_idx in range(start_frame, end_frame):
                 current_time = frame_idx / self._fps
 
@@ -242,7 +244,14 @@ class VideoWriter:
                     get_logger().error("FFmpeg process died early.")
                     break
 
-                pbar.update(1)
+                frames_since_update += 1
+                if frames_since_update >= update_interval:
+                    pbar.update(frames_since_update)
+                    frames_since_update = 0
+
+            # Final update for remaining frames
+            if frames_since_update > 0:
+                pbar.update(frames_since_update)
 
         process.stdin.close()
         process.wait()
