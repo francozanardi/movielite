@@ -22,19 +22,28 @@ class ImageClip(Clip):
         super().__init__(start, duration)
 
         if isinstance(source, str):
-            img = cv2.imread(source, cv2.IMREAD_UNCHANGED)
+            img = cv2.imread(source, cv2.IMREAD_UNCHANGED)  # BGR or BGRA from OpenCV
             if img is None:
                 raise FileNotFoundError(f"Image not found: {source}")
-            if img.shape[2] == 4:
-                img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
         else:
-            if source.shape[2] == 4:
-                img = cv2.cvtColor(source, cv2.COLOR_RGBA2BGR)
+            img = source.copy()
+
+            if img.ndim != 3 or img.shape[2] not in (3, 4):
+                raise ValueError("source numpy array must have shape (h, w, 3) or (h, w, 4)")
+
+            if img.shape[2] == 4:
+                img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGRA)
             else:
-                img = cv2.cvtColor(source, cv2.COLOR_RGB2BGR)
+                img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+
+        if img.shape[2] == 4:
+            alpha = img[:, :, 3]
+            if (alpha == 255).all():
+                # Fully opaque, drop alpha channel to convert to BGR (it will save us memory)
+                img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
 
         self._image = img.astype(np.uint8)
-        self._size = self._image.shape[1], self._image.shape[0]
+        self._size = (self._image.shape[1], self._image.shape[0])
 
     def get_frame(self, t_rel: float) -> np.ndarray:
         """Get the image frame (same for all times)"""

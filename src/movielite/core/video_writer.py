@@ -57,6 +57,20 @@ class VideoWriter:
 
         get_logger().debug(f"VideoWriter created: output={output_path}, fps={fps}, size={size}, gpu={self._use_gpu}")
 
+    def add_clips(self, clips: List[Clip]) -> 'VideoWriter':
+        """
+        Add multiple visual clips to the composition.
+
+        Args:
+            clips: List of Clip instances to add
+
+        Returns:
+            Self for chaining
+        """
+        for clip in clips:
+            self.add_clip(clip)
+        return self
+
     def add_clip(self, clip: Clip) -> 'VideoWriter':
         """
         Add a visual clip to the composition.

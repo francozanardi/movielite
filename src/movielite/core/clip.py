@@ -126,7 +126,7 @@ class Clip(ABC):
         and should return the transformed frame.
 
         IMPORTANT:
-         The frame received and returned must be in BGR format and uint8 type.
+         The frame received and returned must be in BGR or BGRA format and uint8 type.
          The callback doesn't receive a copy of the frame, so modifications must be done carefully.
 
         Args:
@@ -204,13 +204,13 @@ class Clip(ABC):
         """
         Get the frame at a relative time within the clip.
 
-        IMPORTANT: the frame returned must be BGR format and uint8 type.
+        IMPORTANT: the frame returned must be BGR or BGRA format and uint8 type.
 
         Args:
             t_rel: Relative time within the clip (0 to duration)
 
         Returns:
-            Frame as numpy array (BGR, uint8)
+            Frame as numpy array (BGRA, uint8)
         """
         pass
 
@@ -233,7 +233,7 @@ class Clip(ABC):
             return bg
 
         # IMPORTANT: we get the original frame, not a copy. Modifications must be done carefully.
-        # Assumptions: it is BGR format, uint8 type
+        # Assumptions: it is BGR/BGRA format, uint8 type
         frame = self.get_frame(t_rel)
 
         # Apply custom frame transformations if set
@@ -280,28 +280,28 @@ class Clip(ABC):
         sub_fr = frame[y1_fr:y2_fr, x1_fr:x2_fr]
 
         if bg.shape[2] == 3:
-            blend_background_bgr_with_foreground_bgr_inplace(roi, sub_fr, alpha_multiplier)
+            blend_foreground_with_bgr_background_inplace(roi, sub_fr, alpha_multiplier)
         else:
-            blend_background_bgra_with_foreground_bgr_inplace(roi, sub_fr, alpha_multiplier)
+            blend_foreground_with_bgra_background_inplace(roi, sub_fr, alpha_multiplier)
 
         return bg
 
 @numba.jit(nopython=True, cache=True)
-def blend_background_bgr_with_foreground_bgr_inplace(background_bgr, foreground_bgr_uint8, opacity_multiplier):
+def blend_foreground_with_bgr_background_inplace(background_bgr, foreground_uint8, opacity_multiplier):
     """
-    Blends foreground (BGR, type uint8) over background (BGR, type float32).
-    Modifies background_bgr in-place.
+    Blends foreground (BGRA or BGR, type uint8) over background (BGR, type float32).
+    Modifies background_bgra in-place.
     """
     for y in range(background_bgr.shape[0]):
         for x in range(background_bgr.shape[1]):
-            fg_b_uint = foreground_bgr_uint8[y, x, 0]
-            fg_g_uint = foreground_bgr_uint8[y, x, 1]
-            fg_r_uint = foreground_bgr_uint8[y, x, 2]
+            fg_b_uint = foreground_uint8[y, x, 0]
+            fg_g_uint = foreground_uint8[y, x, 1]
+            fg_r_uint = foreground_uint8[y, x, 2]
 
             fg_b = float(fg_b_uint)
             fg_g = float(fg_g_uint)
             fg_r = float(fg_r_uint)
-            fg_a = opacity_multiplier
+            fg_a = (float(foreground_uint8[y, x, 3]) / 255.0) * opacity_multiplier if foreground_uint8.shape[2] == 4 else opacity_multiplier
 
             if fg_a <= 0:
                 continue
@@ -324,9 +324,9 @@ def blend_background_bgr_with_foreground_bgr_inplace(background_bgr, foreground_
             background_bgr[y, x, 2] = min(255.0, max(0.0, out_r))
 
 @numba.jit(nopython=True, cache=True)
-def blend_background_bgra_with_foreground_bgr_inplace(background_bgra, foreground_uint8, opacity_multiplier):
+def blend_foreground_with_bgra_background_inplace(background_bgra, foreground_uint8, opacity_multiplier):
     """
-    Blends foreground (BGR, type uint8) over background (BGRA, type float32).
+    Blends foreground (BGRA or BGR, type uint8) over background (BGRA, type float32).
     Modifies background_bgra in-place.
     """
     for y in range(background_bgra.shape[0]):
@@ -338,7 +338,7 @@ def blend_background_bgra_with_foreground_bgr_inplace(background_bgra, foregroun
             fg_b = float(fg_b_uint)
             fg_g = float(fg_g_uint)
             fg_r = float(fg_r_uint)
-            fg_a = opacity_multiplier
+            fg_a = (float(foreground_uint8[y, x, 3]) / 255.0) * opacity_multiplier if foreground_uint8.shape[2] == 4 else opacity_multiplier
 
             if fg_a <= 0:
                 continue
