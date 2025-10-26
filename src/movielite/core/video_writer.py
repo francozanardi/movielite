@@ -462,6 +462,41 @@ class VideoWriter:
 
         subprocess.run(cmd, check=True)
 
+    def _get_background_clip_and_clips_to_blend(self, clips: list[Clip], current_time: float) -> tuple[Clip | None, list[Clip]]:
+        """
+        Find the first active clip that can be used as background optimization, and the clips to blend in the current time.
+
+        Returns:
+            Tuple of (background_clip, remaining_clips_to_blend)
+            If no valid background found, returns (None, original_clips)
+        """
+        clips_to_blend = []
+        background_clip = None
+        searching_background = True
+        for clip in clips:
+            t_rel = current_time - clip.start
+
+            if not (0 <= t_rel < clip.duration):
+                continue
+
+            if not searching_background:
+                clips_to_blend.append(clip)
+                continue
+
+            if clip.size[0] != self._size[0] or clip.size[1] != self._size[1]:
+                searching_background = False
+                clips_to_blend.append(clip)
+                continue
+            
+            if clip.has_any_transform:
+                searching_background = False
+                clips_to_blend.append(clip)
+                continue 
+
+            background_clip = clip
+
+        return (background_clip, clips_to_blend)
+
     def _render_range(self, start_frame: int, end_frame: int, part_path: str, video_quality: VideoQuality) -> None:
         """
         Render a range of frames by reading each frame.
@@ -503,12 +538,17 @@ class VideoWriter:
         num_frames_to_render = end_frame - start_frame
         with tqdm(total=num_frames_to_render, desc="Rendering video frames") as pbar:
             for frame_idx in range(start_frame, end_frame):
-                # Create black frame
-                frame = np.zeros((self._size[1], self._size[0], 3), dtype=np.float32)
-
-                # Render all clips onto the frame
                 current_time = frame_idx / self._fps
-                for clip in clips_to_render:
+
+                background_clip, clips_to_blend = self._get_background_clip_and_clips_to_blend(clips_to_render, current_time)
+                if background_clip:
+                    frame = background_clip.get_frame(current_time - background_clip._start)
+                    if clips_to_blend:
+                        frame = frame.astype(np.float32)
+                else:
+                    frame = np.zeros((self._size[1], self._size[0], 3), dtype=np.float32)
+
+                for clip in clips_to_blend:
                     frame = clip.render(frame, current_time)
 
                 # Convert to uint8 and write

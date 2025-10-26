@@ -27,6 +27,7 @@ class Clip(ABC):
         self._opacity: Callable[[float], float] = lambda t: 1
         self._scale: Callable[[float], float] = lambda t: 1
         self._frame_transform: Optional[Callable[[np.ndarray, float], np.ndarray]] = None
+        self._has_any_transform = False
 
     def set_position(self, value: Union[Callable[[float], Tuple[int, int]], Tuple[int, int]]) -> 'Clip':
         """
@@ -39,6 +40,7 @@ class Clip(ABC):
             Self for chaining
         """
         self._position = self._save_as_function(value)
+        self._has_any_transform = True
         return self
 
     def set_opacity(self, value: Union[Callable[[float], float], float]) -> 'Clip':
@@ -52,6 +54,7 @@ class Clip(ABC):
             Self for chaining
         """
         self._opacity = self._save_as_function(value)
+        self._has_any_transform = True
         return self
 
     def set_scale(self, value: Union[Callable[[float], float], float]) -> 'Clip':
@@ -65,6 +68,7 @@ class Clip(ABC):
             Self for chaining
         """
         self._scale = self._save_as_function(value)
+        self._has_any_transform = True
         return self
 
     def set_size(self, width: Optional[int] = None, height: Optional[int] = None) -> 'Clip':
@@ -131,6 +135,7 @@ class Clip(ABC):
             >>> clip.transform_frame(make_sepia)
         """
         self._frame_transform = callback
+        self._has_any_transform = True
         return self
 
     def _save_as_function(self, value: Union[Callable, float, Tuple[int, int]]) -> Callable:
@@ -166,6 +171,10 @@ class Clip(ABC):
     @property
     def end(self):
         return self.start + self.duration
+    
+    @property
+    def has_any_transform(self):
+        return self._has_any_transform
 
     @abstractmethod
     def get_frame(self, t_rel: float) -> np.ndarray:
