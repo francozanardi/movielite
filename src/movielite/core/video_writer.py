@@ -23,7 +23,14 @@ class VideoWriter:
     - Encoding the final video with multiprocessing support
     """
 
-    def __init__(self, output_path: str, fps: float = 30, size: Tuple[int, int] = (1920, 1080), duration: Optional[float] = None):
+    def __init__(
+            self,
+            output_path: str,
+            fps: float = 30,
+            size: Tuple[int, int] = (1920, 1080),
+            duration: Optional[float] = None,
+            use_gpu: bool = False
+        ):
         """
         Create a video writer.
 
@@ -32,6 +39,7 @@ class VideoWriter:
             fps: Frames per second for the output video
             size: Video dimensions (width, height)
             duration: Total duration in seconds (if None, auto-calculated from clips)
+            use_gpu: Try to use GPU encoding (h264_nvenc) if available, fallback to CPU
         """
         if size[0] <= 0 or size[1] <= 0:
             raise ValueError(f"Invalid video size: {size}. Width and height must be greater than 0.")
@@ -42,8 +50,12 @@ class VideoWriter:
         self._duration: Optional[float] = duration
         self._clips: List[Clip] = []
         self._audio_clips: List[AudioClip] = []
+        self._use_gpu = use_gpu and _check_nvenc_available()
 
-        get_logger().debug(f"VideoWriter created: output={output_path}, fps={fps}, size={size}")
+        if use_gpu and not self._use_gpu:
+            get_logger().warning("GPU encoding (h264_nvenc) not available, using CPU (libx264)")
+
+        get_logger().debug(f"VideoWriter created: output={output_path}, fps={fps}, size={size}, gpu={self._use_gpu}")
 
     def add_clip(self, clip: Clip) -> 'VideoWriter':
         """
@@ -205,15 +217,30 @@ class VideoWriter:
             "-s", f"{self._size[0]}x{self._size[1]}",
             "-r", str(self._fps),
             "-i", "pipe:0",
-            "-c:v", "libx264",
-            "-preset", _get_ffmpeg_libx264_preset(video_quality),
-            "-crf", _get_ffmpeg_libx264_crf(video_quality),
+        ]
+
+        if self._use_gpu:
+            # GPU encoding (NVIDIA)
+            ffmpeg_cmd.extend([
+                "-c:v", "h264_nvenc",
+                "-preset", _get_ffmpeg_nvenc_preset(video_quality),
+                "-cq:v", _get_ffmpeg_nvenc_cq(video_quality),
+            ])
+        else:
+            # CPU encoding
+            ffmpeg_cmd.extend([
+                "-c:v", "libx264",
+                "-preset", _get_ffmpeg_libx264_preset(video_quality),
+                "-crf", _get_ffmpeg_libx264_crf(video_quality),
+            ])
+
+        ffmpeg_cmd.extend([
             "-movflags", "+faststart",
             "-pix_fmt", "yuv420p",
             part_path,
             "-loglevel", "error",
             "-hide_banner"
-        ]
+        ])
 
         process = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE)
 
@@ -237,7 +264,6 @@ class VideoWriter:
                 for clip in clips_to_blend:
                     frame = clip.render(frame, current_time)
 
-                # Convert to uint8 and write
                 try:
                     process.stdin.write(frame.astype(np.uint8).tobytes())
                 except BrokenPipeError:
@@ -383,3 +409,38 @@ def _get_ffmpeg_libx264_crf(quality: VideoQuality) -> str:
         VideoQuality.VERY_HIGH: '17',
     }
     return mapping.get(quality, '21')
+
+
+def _get_ffmpeg_nvenc_preset(quality: VideoQuality) -> str:
+    """Get NVENC preset for quality level (p1-p7)."""
+    mapping = {
+        VideoQuality.LOW: 'p1',
+        VideoQuality.MIDDLE: 'p4',
+        VideoQuality.HIGH: 'p6',
+        VideoQuality.VERY_HIGH: 'p7',
+    }
+    return mapping.get(quality, 'p4')
+
+
+def _get_ffmpeg_nvenc_cq(quality: VideoQuality) -> str:
+    """Get NVENC CQ value for quality level (0-51)."""
+    mapping = {
+        VideoQuality.LOW: '23',
+        VideoQuality.MIDDLE: '21',
+        VideoQuality.HIGH: '19',
+        VideoQuality.VERY_HIGH: '17',
+    }
+    return mapping.get(quality, '21')
+
+def _check_nvenc_available() -> bool:
+    """Check if NVENC (GPU encoding) is available."""
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-encoders"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        return "h264_nvenc" in result.stdout
+    except Exception:
+        return False
