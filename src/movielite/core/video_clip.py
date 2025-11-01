@@ -9,10 +9,6 @@ from .logger import get_logger
 class VideoClip(Clip):
     """
     A video clip that loads and processes frames.
-
-    This class reads video frames into memory for pixel-level processing.
-    Use this when you need to apply custom transformations, effects, or
-    need direct access to frame data.
     """
 
     def __init__(self, path: str, start: float = 0, duration: Optional[float] = None, offset: float = 0):
