@@ -44,10 +44,18 @@ class ImageClip(Clip):
 
         self._image = img.astype(np.uint8)
         self._size = (self._image.shape[1], self._image.shape[0])
+        self._original_image = self._image  # Keep original for potential re-resizing
 
     def get_frame(self, t_rel: float) -> np.ndarray:
         """Get the image frame (same for all times)"""
-        return self._image#.copy()
+        return self._image
+
+    def _apply_resize(self, frame: np.ndarray) -> np.ndarray:
+        interpolation = cv2.INTER_AREA if (self._target_size[0] < self._size[0]) else cv2.INTER_CUBIC
+        self._image = cv2.resize(self._original_image, self._target_size, interpolation=interpolation)
+        self._size = self._target_size
+        self._target_size = None
+        return self._image
 
     @classmethod
     def from_color(cls, color: tuple, size: tuple, start: float = 0, duration: float = 5.0) -> 'ImageClip':

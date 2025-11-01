@@ -98,6 +98,11 @@ class VideoClip(Clip):
         self._last_frame = frame
         return frame
 
+    def _apply_resize(self, frame: np.ndarray) -> np.ndarray:
+        """Resize frame (happens every frame for videos)"""
+        interpolation = cv2.INTER_AREA if (self._target_size[0] < frame.shape[1]) else cv2.INTER_CUBIC
+        return cv2.resize(frame, self._target_size, interpolation=interpolation)
+
     def close(self):
         """Close the video file"""
         if self._cap is not None:
@@ -138,7 +143,9 @@ class VideoClip(Clip):
         new_clip._position = self._position
         new_clip._opacity = self._opacity
         new_clip._scale = self._scale
+        new_clip._target_size = self._target_size
         new_clip._frame_transforms = self._frame_transforms.copy()
+        new_clip._has_any_transform = self._has_any_transform
         new_clip._cap = None
         new_clip._current_frame_idx = -1
         new_clip._last_frame = None

@@ -23,6 +23,7 @@ class Clip(ABC):
         self._start = start
         self._duration = duration
         self._size: Tuple[int, int] = (0, 0)
+        self._target_size: Optional[Tuple[int, int]] = None
         self._position: Callable[[float], Tuple[int, int]] = lambda t: (0, 0)
         self._opacity: Callable[[float], float] = lambda t: 1
         self._scale: Callable[[float], float] = lambda t: 1
@@ -71,10 +72,11 @@ class Clip(ABC):
         self._has_any_transform = True
         return self
 
-    # TODO: this is not working. Fix it.
     def set_size(self, width: Optional[int] = None, height: Optional[int] = None) -> 'Clip':
         """
         Set the size of the clip, maintaining aspect ratio if only one dimension is provided.
+
+        The resize is applied lazily (only when needed during rendering).
 
         Args:
             width: Target width (optional)
@@ -100,7 +102,8 @@ class Clip(ABC):
             new_w = int(width)
             new_h = int(height)
 
-        self._size = (new_w, new_h)
+        self._target_size = (new_w, new_h)
+        self._has_any_transform = True
         return self
 
     def set_duration(self, duration: float) -> 'Clip':
@@ -181,7 +184,7 @@ class Clip(ABC):
 
     @property
     def size(self):
-        return self._size
+        return self._target_size if self._target_size is not None else self._size
 
     @property
     def start(self):
@@ -203,6 +206,7 @@ class Clip(ABC):
     def get_frame(self, t_rel: float) -> np.ndarray:
         """
         Get the frame at a relative time within the clip.
+        The returned frame does not include any transformations (position, scale, size, opacity, custom transforms).
 
         IMPORTANT: the frame returned must be BGR or BGRA format and uint8 type.
 
@@ -211,6 +215,19 @@ class Clip(ABC):
 
         Returns:
             Frame as numpy array (BGRA, uint8)
+        """
+        pass
+
+    @abstractmethod
+    def _apply_resize(self, frame: np.ndarray) -> np.ndarray:
+        """
+        Apply resize transformation to a frame.
+
+        Args:
+            frame: The frame to resize
+
+        Returns:
+            Resized frame
         """
         pass
 
@@ -236,7 +253,9 @@ class Clip(ABC):
         # Assumptions: it is BGR/BGRA format, uint8 type
         frame = self.get_frame(t_rel)
 
-        # Apply custom frame transformations if set
+        if self._target_size is not None:
+            frame = self._apply_resize(frame)
+
         for transform in self._frame_transforms:
             frame = transform(frame, t_rel)
 

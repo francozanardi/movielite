@@ -53,12 +53,20 @@ class TextClip(Clip):
         img_bgra = rendered.to_numpy(mode='BGRA')
         self._image = img_bgra.astype(np.uint8)
         self._size = (self._image.shape[1], self._image.shape[0])
+        self._original_image = self._image  # Keep original for potential re-resizing
 
         get_logger().debug(f"TextClip created: text='{text}', size={self._size}, shape={self._image.shape}")
 
     def get_frame(self, t_rel: float) -> np.ndarray:
         """Get the rendered text frame (same for all times)"""
-        return self._image#.copy()
+        return self._image
+
+    def _apply_resize(self, frame: np.ndarray) -> np.ndarray:
+        interpolation = cv2.INTER_AREA if (self._target_size[0] < self._size[0]) else cv2.INTER_CUBIC
+        self._image = cv2.resize(self._original_image, self._target_size, interpolation=interpolation)
+        self._size = self._target_size
+        self._target_size = None
+        return self._image
 
     def _get_default_canvas(self) -> 'Canvas':
         """Get a default canvas with basic styling"""
