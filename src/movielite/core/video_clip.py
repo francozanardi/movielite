@@ -25,6 +25,8 @@ class VideoClip(Clip):
             duration: Duration to use from the video (if None, uses full video duration)
             offset: Start offset within the video file (seconds)
         """
+        super().__init__(start, duration)
+
         ext = os.path.splitext(path)[1].lower()
         if ext not in ['.mp4', '.mov', '.avi', '.mkv', '.webm']:
             raise ValueError(f"Unsupported video format: {ext}")
@@ -35,7 +37,6 @@ class VideoClip(Clip):
         self._path = path
         self._offset = offset
 
-        # Load metadata first to get video properties
         self._load_metadata(path)
 
         # Determine actual duration
@@ -45,14 +46,6 @@ class VideoClip(Clip):
         else:
             duration = min(duration, video_duration - offset)
 
-        # Call parent constructor - this will reset self._size to (0, 0)
-        super().__init__(start, duration)
-
-        # Re-set the size after calling super().__init__()
-        # (Clip.__init__ sets _size to (0, 0), so we need to restore it)
-        self._size = (self._video_width, self._video_height)
-
-        # Keep VideoCapture open for efficient sequential reading
         self._cap = None
         self._current_frame_idx = -1
         self._last_frame = None
@@ -133,8 +126,6 @@ class VideoClip(Clip):
         new_clip = VideoClip.__new__(VideoClip)
         new_clip._path = self._path
         new_clip._fps = self._fps
-        new_clip._video_width = self._video_width
-        new_clip._video_height = self._video_height
         new_clip._size = self._size
         new_clip._total_frames = self._total_frames
         new_clip._offset = self._offset + start
@@ -167,9 +158,7 @@ class VideoClip(Clip):
             cap.release()
             raise RuntimeError(f"Could not read valid properties from video: {path}")
 
-        # Store in separate variables to avoid being overwritten by Clip.__init__
-        self._video_width = w
-        self._video_height = h
+        self._size = (w, h)
 
         get_logger().debug(f"ProcessedVideoClip loaded: {path}, size=({w}, {h}), fps={self._fps}, frames={self._total_frames}")
         cap.release()
