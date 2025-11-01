@@ -262,9 +262,7 @@ class Clip(ABC):
         x, y = self.position(t_rel)
         x, y = int(x), int(y)
 
-        # TODO: I think that for fixed scales/opacity we should do the transformation before rendering
-        # so get_frame() would return the already transformed frame...
-        # The other option is to cache the transformed frames if the clip is static (it would only be applicable for scale).
+        # TODO: if scale is a fixed value (the same for every t), and the clip is an image, we could pre-scale the image once here
         s = self.scale(t_rel)
         alpha_multiplier = self.opacity(t_rel)
 
