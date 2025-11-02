@@ -3,11 +3,7 @@ from typing import Optional
 from .clip import Clip
 from .logger import get_logger
 import cv2
-
-try:
-    from pictex import Canvas
-except ImportError:
-    Canvas = None
+from pictex import Canvas
 
 class TextClip(Clip):
     """
@@ -16,7 +12,7 @@ class TextClip(Clip):
     Requires pictex to be installed: pip install pictex
     """
 
-    def __init__(self, text: str, start: float = 0, duration: float = 5.0, canvas: Optional['Canvas'] = None):
+    def __init__(self, text: str, start: float = 0, duration: float = 5.0, canvas: Optional[Canvas] = None):
         """
         Create a text clip.
 
@@ -67,6 +63,16 @@ class TextClip(Clip):
         self._size = self._target_size
         self._target_size = None
         return self._image
+
+    def _convert_to_mask(self, frame: np.ndarray) -> np.ndarray:
+        """Convert text frame to 2D mask (0-255 uint8)"""
+        if frame.shape[2] == 4:
+            # Use alpha channel
+            mask = frame[:, :, 3]
+        else:
+            # Convert to grayscale
+            mask = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        return mask
 
     def _get_default_canvas(self) -> 'Canvas':
         """Get a default canvas with basic styling"""

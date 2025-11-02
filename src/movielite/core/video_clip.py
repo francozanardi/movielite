@@ -92,6 +92,16 @@ class VideoClip(Clip):
         interpolation = cv2.INTER_AREA if (self._target_size[0] < frame.shape[1]) else cv2.INTER_CUBIC
         return cv2.resize(frame, self._target_size, interpolation=interpolation)
 
+    def _convert_to_mask(self, frame: np.ndarray) -> np.ndarray:
+        """Convert video frame to 2D mask (0-255 uint8)"""
+        if frame.shape[2] == 4:
+            # Use alpha channel
+            mask = frame[:, :, 3]
+        else:
+            # Convert to grayscale
+            mask = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        return mask
+
     def close(self):
         """Close the video file"""
         if self._cap is not None:
@@ -133,6 +143,7 @@ class VideoClip(Clip):
         new_clip._target_size = self._target_size
         new_clip._frame_transforms = self._frame_transforms.copy()
         new_clip._has_any_transform = self._has_any_transform
+        new_clip._mask = self._mask
         new_clip._cap = None
         new_clip._current_frame_idx = -1
         new_clip._last_frame = None

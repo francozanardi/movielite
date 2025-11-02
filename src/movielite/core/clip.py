@@ -29,6 +29,7 @@ class Clip(ABC):
         self._scale: Callable[[float], float] = lambda t: 1
         self._frame_transforms: list[Callable[[np.ndarray, float], np.ndarray]] = []
         self._has_any_transform = False
+        self._mask: Optional['Clip'] = None
 
     def set_position(self, value: Union[Callable[[float], Tuple[int, int]], Tuple[int, int]]) -> 'Clip':
         """
@@ -164,6 +165,28 @@ class Clip(ABC):
         self._start = start
         return self
 
+    def set_mask(self, mask: 'Clip') -> 'Clip':
+        """
+        Set a mask for this clip.
+
+        The mask clip can have its own independent transformations (position, scale, size, etc).
+        Mask values are derived from the clip's alpha channel (if present) or grayscale conversion.
+
+        Args:
+            mask: Another clip to use as mask
+
+        Returns:
+            Self for chaining
+
+        Example:
+            >>> image = ImageClip("photo.png")
+            >>> mask = ImageClip("mask.png")
+            >>> image.set_mask(mask)
+        """
+        self._mask = mask
+        self._has_any_transform = True
+        return self
+
     def _save_as_function(self, value: Union[Callable, float, Tuple[int, int]]) -> Callable:
         """Convert static values to time-based functions"""
         if inspect.isfunction(value):
@@ -231,6 +254,51 @@ class Clip(ABC):
         """
         pass
 
+    @abstractmethod
+    def _convert_to_mask(self, frame: np.ndarray) -> np.ndarray:
+        """
+        Convert a BGR/BGRA frame to a 2D mask array.
+
+        Args:
+            frame: BGR or BGRA frame (uint8)
+
+        Returns:
+            2D uint8 array with values between 0 (transparent) and 255 (opaque)
+        """
+        pass
+
+    def _apply_transforms(self, frame: np.ndarray, t_rel: float) -> np.ndarray:
+        """
+        Apply size, scale, and custom transforms to a frame.
+
+        Args:
+            frame: Input frame (BGR/BGRA uint8)
+            t_rel: Relative time
+
+        Returns:
+            Transformed frame
+        """
+        if self._target_size is not None:
+            frame = self._apply_resize(frame)
+
+        for transform in self._frame_transforms:
+            frame = transform(frame, t_rel)
+
+        s = self.scale(t_rel)
+        # There's a possible optimization here:
+        # If the clip is an image and the scale is constant, we could cache the scaled image.
+        if s != 1.0:
+            # source: https://docs.opencv.org/3.4/da/d54/group__imgproc__transform.html#ga47a974309e9102f5f08231edc7e7529d
+            # "To shrink an image, it will generally look best with INTER_AREA interpolation, whereas to enlarge an image,
+            #  it will generally look best with INTER_CUBIC (slow) or INTER_LINEAR (faster but still looks OK)."
+            interpolation_method = cv2.INTER_AREA if s < 1.0 else cv2.INTER_CUBIC
+            new_w = int(frame.shape[1] * s)
+            new_h = int(frame.shape[0] * s)
+            frame = cv2.resize(frame, (new_w, new_h), interpolation=interpolation_method)
+            frame = np.clip(frame, 0.0, 255.0)
+
+        return frame
+
     def render(self, bg: np.ndarray, t_global: float) -> np.ndarray:
         """
         Render this clip onto a background at a given global time.
@@ -249,31 +317,27 @@ class Clip(ABC):
         if not (0 <= t_rel < self._duration):
             return bg
 
-        # IMPORTANT: we get the original frame, not a copy. Modifications must be done carefully.
-        # Assumptions: it is BGR/BGRA format, uint8 type
         frame = self.get_frame(t_rel)
+        frame = self._apply_transforms(frame, t_rel)
 
-        if self._target_size is not None:
-            frame = self._apply_resize(frame)
-
-        for transform in self._frame_transforms:
-            frame = transform(frame, t_rel)
+        mask = None
+        mask_x, mask_y = 0, 0
+        mask_opacity_multiplier = 1.0
+        if self._mask is not None:
+            # There's a small possible improvement here:
+            #  When the mask clip is an image, we're doing the convertion from BGR/BGRA to mask every frame render.
+            #  We could do the conversion once and cache it.
+            # However, this would require do the transformations over the mask, which may result in a specific and more complex logic.
+            mask = self._mask.get_frame(t_rel)
+            mask = self._mask._apply_transforms(mask, t_rel)
+            mask = self._convert_to_mask(mask)
+            mask_x, mask_y = self._mask.position(t_rel)
+            mask_x, mask_y = int(mask_x), int(mask_y)
+            mask_opacity_multiplier = self._mask.opacity(t_rel)
 
         x, y = self.position(t_rel)
         x, y = int(x), int(y)
-
-        # TODO: if scale is a fixed value (the same for every t), and the clip is an image, we could pre-scale the image once here
-        s = self.scale(t_rel)
         alpha_multiplier = self.opacity(t_rel)
-
-        if s != 1.0:
-            # source: https://docs.opencv.org/3.4/da/d54/group__imgproc__transform.html#ga47a974309e9102f5f08231edc7e7529d
-            # "To shrink an image, it will generally look best with INTER_AREA interpolation, whereas to enlarge an image,
-            #  it will generally look best with INTER_CUBIC (slow) or INTER_LINEAR (faster but still looks OK)."
-            interpolation_method = cv2.INTER_AREA if s < 1.0 else cv2.INTER_CUBIC
-            scaled_w, scaled_h = int(self._size[0] * s), int(self._size[1] * s)
-            frame = cv2.resize(frame, (scaled_w, scaled_h), interpolation=interpolation_method)
-            frame = np.clip(frame, 0.0, 255.0)
 
         H, W = bg.shape[:2]
         h, w = frame.shape[:2]
@@ -285,32 +349,50 @@ class Clip(ABC):
 
         if y1_bg >= y2_bg or x1_bg >= x2_bg:
             return bg
-        
+
         # Frame coordinates
         y1_fr = y1_bg - y
         x1_fr = x1_bg - x
         y2_fr = y2_bg - y
         x2_fr = x2_bg - x
 
-        # Alpha blending
         roi = bg[y1_bg:y2_bg, x1_bg:x2_bg]
         sub_fr = frame[y1_fr:y2_fr, x1_fr:x2_fr]
 
         if bg.shape[2] == 3:
-            blend_foreground_with_bgr_background_inplace(roi, sub_fr, alpha_multiplier)
+            blend_foreground_with_bgr_background_inplace(roi, sub_fr, x, y, alpha_multiplier, mask, mask_x, mask_y, mask_opacity_multiplier)
         else:
-            blend_foreground_with_bgra_background_inplace(roi, sub_fr, alpha_multiplier)
+            blend_foreground_with_bgra_background_inplace(roi, sub_fr, x, y, alpha_multiplier, mask, mask_x, mask_y, mask_opacity_multiplier)
 
         return bg
 
 @numba.jit(nopython=True, cache=True)
-def blend_foreground_with_bgr_background_inplace(background_bgr, foreground_uint8, opacity_multiplier):
+def blend_foreground_with_bgr_background_inplace(
+    background_bgr,
+    foreground_uint8,
+    fg_x,
+    fg_y,
+    fg_opacitiy_multiplier,
+    mask,
+    mask_x,
+    mask_y,
+    mask_opacity_multiplier
+):
     """
     Blends foreground (BGRA or BGR, type uint8) over background (BGR, type float32).
-    Modifies background_bgra in-place.
+    Modifies background_bgr in-place.
+
+    Args:
+        background_bgr: Background ROI (BGR, float32)
+        foreground_uint8: Foreground sub-frame (BGR/BGRA, uint8)
+        fg_x, fg_y: Foreground position in absolute coordinates
+        fg_opacitiy_multiplier: Opacity value for foreground (0-1)
+        mask: Optional 2D mask array (uint8, 0-255), or None
+        mask_x, mask_y: Mask position in absolute coordinates
+        mask_opacity_multiplier: Opacity multiplier for mask values (0-1)
     """
-    for y in range(background_bgr.shape[0]):
-        for x in range(background_bgr.shape[1]):
+    for y in range(foreground_uint8.shape[0]):
+        for x in range(foreground_uint8.shape[1]):
             fg_b_uint = foreground_uint8[y, x, 0]
             fg_g_uint = foreground_uint8[y, x, 1]
             fg_r_uint = foreground_uint8[y, x, 2]
@@ -318,7 +400,20 @@ def blend_foreground_with_bgr_background_inplace(background_bgr, foreground_uint
             fg_b = float(fg_b_uint)
             fg_g = float(fg_g_uint)
             fg_r = float(fg_r_uint)
-            fg_a = (float(foreground_uint8[y, x, 3]) / 255.0) * opacity_multiplier if foreground_uint8.shape[2] == 4 else opacity_multiplier
+            fg_a = (float(foreground_uint8[y, x, 3]) / 255.0) * fg_opacitiy_multiplier if foreground_uint8.shape[2] == 4 else fg_opacitiy_multiplier
+
+            if mask is not None:
+                abs_y = fg_y + y
+                abs_x = fg_x + x
+                mask_rel_y = abs_y - mask_y
+                mask_rel_x = abs_x - mask_x
+
+                if 0 <= mask_rel_y < mask.shape[0] and 0 <= mask_rel_x < mask.shape[1]:
+                    mask_value = (float(mask[mask_rel_y, mask_rel_x]) / 255.0) * mask_opacity_multiplier
+                else:
+                    mask_value = 0.0  # Outside mask = invisible
+
+                fg_a *= mask_value
 
             if fg_a <= 0:
                 continue
@@ -341,13 +436,32 @@ def blend_foreground_with_bgr_background_inplace(background_bgr, foreground_uint
             background_bgr[y, x, 2] = min(255.0, max(0.0, out_r))
 
 @numba.jit(nopython=True, cache=True)
-def blend_foreground_with_bgra_background_inplace(background_bgra, foreground_uint8, opacity_multiplier):
+def blend_foreground_with_bgra_background_inplace(
+    background_bgra,
+    foreground_uint8,
+    fg_x,
+    fg_y,
+    fg_opacitiy_multiplier,
+    mask,
+    mask_x,
+    mask_y,
+    mask_opacity_multiplier
+):
     """
     Blends foreground (BGRA or BGR, type uint8) over background (BGRA, type float32).
     Modifies background_bgra in-place.
+
+    Args:
+        background_bgra: Background ROI (BGRA, float32)
+        foreground_uint8: Foreground sub-frame (BGR/BGRA, uint8)
+        fg_x, fg_y: Foreground position in absolute coordinates
+        fg_opacitiy_multiplier: Opacity value for foreground (0-1)
+        mask: Optional 2D mask array (uint8, 0-255), or None
+        mask_x, mask_y: Mask position in absolute coordinates
+        mask_opacity_multiplier: Opacity multiplier for mask values (0-1)
     """
-    for y in range(background_bgra.shape[0]):
-        for x in range(background_bgra.shape[1]):
+    for y in range(foreground_uint8.shape[0]):
+        for x in range(foreground_uint8.shape[1]):
             fg_b_uint = foreground_uint8[y, x, 0]
             fg_g_uint = foreground_uint8[y, x, 1]
             fg_r_uint = foreground_uint8[y, x, 2]
@@ -355,7 +469,20 @@ def blend_foreground_with_bgra_background_inplace(background_bgra, foreground_ui
             fg_b = float(fg_b_uint)
             fg_g = float(fg_g_uint)
             fg_r = float(fg_r_uint)
-            fg_a = (float(foreground_uint8[y, x, 3]) / 255.0) * opacity_multiplier if foreground_uint8.shape[2] == 4 else opacity_multiplier
+            fg_a = (float(foreground_uint8[y, x, 3]) / 255.0) * fg_opacitiy_multiplier if foreground_uint8.shape[2] == 4 else fg_opacitiy_multiplier
+
+            if mask is not None:
+                abs_y = fg_y + y
+                abs_x = fg_x + x
+                mask_rel_y = abs_y - mask_y
+                mask_rel_x = abs_x - mask_x
+
+                if 0 <= mask_rel_y < mask.shape[0] and 0 <= mask_rel_x < mask.shape[1]:
+                    mask_value = (float(mask[mask_rel_y, mask_rel_x]) / 255.0) * mask_opacity_multiplier
+                else:
+                    mask_value = 0.0  # Outside mask = invisible
+
+                fg_a *= mask_value
 
             if fg_a <= 0:
                 continue

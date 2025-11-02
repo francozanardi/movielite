@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from typing import Union
+from typing import Union, Optional
 from .clip import Clip
 
 class ImageClip(Clip):
@@ -56,6 +56,16 @@ class ImageClip(Clip):
         self._size = self._target_size
         self._target_size = None
         return self._image
+
+    def _convert_to_mask(self, frame: np.ndarray) -> np.ndarray:
+        """Convert image frame to 2D mask (0-255 uint8)"""
+        if frame.shape[2] == 4:
+            # Use alpha channel
+            mask = frame[:, :, 3]
+        else:
+            # Convert to grayscale
+            mask = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        return mask
 
     @classmethod
     def from_color(cls, color: tuple, size: tuple, start: float = 0, duration: float = 5.0) -> 'ImageClip':
