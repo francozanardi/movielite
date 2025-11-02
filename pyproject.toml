@@ -31,8 +31,6 @@ classifiers = [
 dependencies = [
     "numpy",
     "opencv-python",
-    "pydub>=0.25.1",
-    'audioop-lts; python_version >= "3.13"',
     "multiprocess",
     "tqdm",
     "pictex",
