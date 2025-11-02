@@ -5,6 +5,7 @@ A lightweight alternative to moviepy focused on speed and simplicity.
 """
 
 from .core import (
+    MediaClip,
     GraphicClip,
     VideoClip,
     ImageClip,
@@ -19,6 +20,7 @@ from .core import (
 __version__ = "0.1.0"
 
 __all__ = [
+    "MediaClip",
     "GraphicClip",
     "VideoClip",
     "ImageClip",

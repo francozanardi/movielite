@@ -1,3 +1,4 @@
+from .media_clip import MediaClip
 from .graphic_clip import GraphicClip
 from .video_clip import VideoClip
 from .image_clip import ImageClip
@@ -8,6 +9,7 @@ from .enums import VideoQuality
 from .logger import get_logger, set_log_level
 
 __all__ = [
+    "MediaClip",
     "GraphicClip",
     "VideoClip",
     "ImageClip",
