@@ -1,15 +1,13 @@
 import numpy as np
 from typing import Optional
-from .clip import Clip
+from .graphic_clip import GraphicClip
 from .logger import get_logger
 import cv2
 from pictex import Canvas
 
-class TextClip(Clip):
+class TextClip(GraphicClip):
     """
     A text clip that renders text using the pictex library.
-
-    Requires pictex to be installed: pip install pictex
     """
 
     def __init__(self, text: str, start: float = 0, duration: float = 5.0, canvas: Optional[Canvas] = None):

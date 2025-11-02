@@ -7,7 +7,8 @@ import math
 import shutil
 from typing import Tuple, List, Optional
 from tqdm import tqdm
-from .clip import Clip
+from .media_clip import MediaClip
+from .graphic_clip import GraphicClip
 from .audio_clip import AudioClip
 from .enums import VideoQuality
 from .logger import get_logger
@@ -48,7 +49,7 @@ class VideoWriter:
         self._fps: float = fps
         self._size: Tuple[int, int] = size
         self._duration: Optional[float] = duration
-        self._clips: List[Clip] = []
+        self._graphic_clips: List[GraphicClip] = []
         self._audio_clips: List[AudioClip] = []
         self._use_gpu = use_gpu and _check_nvenc_available()
 
@@ -57,7 +58,7 @@ class VideoWriter:
 
         get_logger().debug(f"VideoWriter created: output={output_path}, fps={fps}, size={size}, gpu={self._use_gpu}")
 
-    def add_clips(self, clips: List[Clip]) -> 'VideoWriter':
+    def add_clips(self, clips: List[MediaClip]) -> 'VideoWriter':
         """
         Add multiple visual clips to the composition.
 
@@ -71,33 +72,25 @@ class VideoWriter:
             self.add_clip(clip)
         return self
 
-    def add_clip(self, clip: Clip) -> 'VideoWriter':
+    def add_clip(self, clip: MediaClip) -> 'VideoWriter':
         """
         Add a visual clip to the composition.
 
         Args:
-            clip: Clip to add (VideoClip, ImageClip, TextClip, etc.)
+            clip: MediaClip to add (VideoClip, AudioClip, ImageClip, TextClip, etc.)
 
         Returns:
             Self for chaining
         """
-        if not isinstance(clip, Clip):
-            raise TypeError(f"Expected Clip instance, got {type(clip)}")
+        if isinstance(clip, AudioClip):
+            self._audio_clips.append(clip)
+        elif isinstance(clip, GraphicClip):
+            self._graphic_clips.append(clip)
+            if isinstance(clip, VideoClip):
+                self._audio_clips.append(clip.audio)
+        else:
+            raise TypeError(f"Unsupported clip type: {type(clip)}")
         
-        self._clips.append(clip)
-        return self
-
-    def add_audio(self, audio_clip: AudioClip) -> 'VideoWriter':
-        """
-        Add an audio clip to the composition.
-
-        Args:
-            audio_clip: AudioClip to add
-
-        Returns:
-            Self for chaining
-        """
-        self._audio_clips.append(audio_clip)
         return self
 
     def write(
@@ -115,16 +108,14 @@ class VideoWriter:
         """
         # Calculate duration if not specified
         if self._duration is None:
-            if self._clips:
-                self._duration = max(clip.end for clip in self._clips)
+            if self._graphic_clips:
+                self._duration = max(clip.end for clip in self._graphic_clips)
             else:
                 raise ValueError("No clips added and no duration specified")
 
         if self._duration <= 0:
             raise ValueError(f"Invalid duration: {self._duration}")
 
-        # Extract audio from video clips for full render path
-        self._extract_video_audio()
         total_frames = int(self._duration * self._fps)
         temp_dir = tempfile.mkdtemp()
 
@@ -163,17 +154,7 @@ class VideoWriter:
 
         get_logger().info(f"Video saved to: {self._output}")
 
-    def _extract_video_audio(self) -> None:
-        """
-        Extract audio from video clips and add them to the audio mix.
-        """
-
-        for clip in self._clips:
-            if isinstance(clip, VideoClip):
-                self._audio_clips.append(clip.audio)
-                get_logger().debug(f"Extracted audio from video clip: {clip._path}")
-
-    def _get_background_clip_and_clips_to_blend(self, clips: list[Clip], current_time: float) -> tuple[Clip | None, list[Clip]]:
+    def _get_background_clip_and_clips_to_blend(self, clips: list[GraphicClip], current_time: float) -> tuple[GraphicClip | None, list[GraphicClip]]:
         """
         Find the first active clip that can be used as background optimization, and the clips to blend in the current time.
 
@@ -257,7 +238,7 @@ class VideoWriter:
             for frame_idx in range(start_frame, end_frame):
                 current_time = frame_idx / self._fps
 
-                background_clip, clips_to_blend = self._get_background_clip_and_clips_to_blend(self._clips, current_time)
+                background_clip, clips_to_blend = self._get_background_clip_and_clips_to_blend(self._graphic_clips, current_time)
                 if background_clip:
                     frame = background_clip.get_frame(current_time - background_clip._start)
                     if clips_to_blend:
@@ -286,10 +267,9 @@ class VideoWriter:
         process.stdin.close()
         process.wait()
 
-        # Close any ProcessedVideoClip instances we created
-        for clip in self._clips:
-            if isinstance(clip, VideoClip):
-                clip.close()
+        # Close any VideoClip instances we created
+        for clip in self._graphic_clips:
+            clip.close()
 
     def _merge_parts(self, part_paths: List[str], merged_path: str) -> None:
         """Merge multiple video parts into one using ffmpeg concat."""

@@ -2,12 +2,12 @@ import cv2
 import numpy as np
 import os
 from typing import Optional
-from .clip import Clip
+from .graphic_clip import GraphicClip
 from .audio_clip import AudioClip
 from .logger import get_logger
 
 # TODO: it doesn't support transparency, we must add a new VideoClip subclass that supports alpha channel
-class VideoClip(Clip):
+class VideoClip(GraphicClip):
     """
     A video clip that loads and processes frames.
     """
@@ -113,15 +113,12 @@ class VideoClip(Clip):
 
     def close(self):
         """Close the video file"""
+        super().close()
         if self._cap is not None:
             self._cap.release()
             self._cap = None
             self._current_frame_idx = -1
             self._last_frame = None
-
-    def __del__(self):
-        """Ensure video file is closed when object is destroyed"""
-        self.close()
 
     def subclip(self, start: float, end: float) -> 'VideoClip':
         """
@@ -247,4 +244,20 @@ class VideoClip(Clip):
         """
         self._offset = offset
         self._audio_clip._offset = offset
+        return self
+
+    def set_end(self, end: float) -> 'VideoClip':
+        """
+        Set the end time of this clip in the composition.
+        Also updates the audio track's end time.
+        Adjusts duration to match: duration = end - start
+
+        Args:
+            end: End time in seconds
+
+        Returns:
+            Self for chaining
+        """
+        self._duration = end - self._start
+        self._audio_clip._duration = self._duration
         return self

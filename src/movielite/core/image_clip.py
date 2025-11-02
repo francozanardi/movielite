@@ -1,9 +1,9 @@
 import cv2
 import numpy as np
-from typing import Union, Optional
-from .clip import Clip
+from typing import Union
+from .graphic_clip import GraphicClip
 
-class ImageClip(Clip):
+class ImageClip(GraphicClip):
     """
     An image clip that displays a static image for a given duration.
 

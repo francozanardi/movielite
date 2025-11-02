@@ -1,9 +1,9 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..core.clip import Clip
+    from ..core.graphic_clip import GraphicClip
 
-def fade_in(clip: 'Clip', duration: float = 1.0) -> 'Clip':
+def fade_in(clip: 'GraphicClip', duration: float = 1.0) -> 'GraphicClip':
     """
     Apply a fade-in effect to a clip.
 
@@ -31,7 +31,7 @@ def fade_in(clip: 'Clip', duration: float = 1.0) -> 'Clip':
     return clip
 
 
-def fade_out(clip: 'Clip', duration: float = 1.0) -> 'Clip':
+def fade_out(clip: 'GraphicClip', duration: float = 1.0) -> 'GraphicClip':
     """
     Apply a fade-out effect to a clip.
 
@@ -61,7 +61,7 @@ def fade_out(clip: 'Clip', duration: float = 1.0) -> 'Clip':
     return clip
 
 
-def resize(clip: 'Clip', width: int = None, height: int = None) -> 'Clip':
+def resize(clip: 'GraphicClip', width: int = None, height: int = None) -> 'GraphicClip':
     """
     Resize a clip to the specified dimensions.
 

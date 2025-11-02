@@ -1,27 +1,27 @@
 import cv2
 import numpy as np
 import numba
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import Callable, Union, Tuple, Optional
 import inspect
+from .media_clip import MediaClip
 
-class Clip(ABC):
+class GraphicClip(MediaClip):
     """
-    Base class for all media clips (video, image, audio, etc).
+    Base class for all visual/graphic clips (video, image, text, etc).
 
-    A Clip has a start time, duration, and can be rendered at any given time.
+    A GraphicClip has visual properties (position, opacity, scale, size) and can be rendered.
     """
 
     def __init__(self, start: float, duration: float):
         """
-        Initialize a Clip.
+        Initialize a GraphicClip.
 
         Args:
             start: Start time in seconds
             duration: Duration in seconds
         """
-        self._start = start
-        self._duration = duration
+        super().__init__(start, duration)
         self._size: Tuple[int, int] = (0, 0)
         self._target_size: Optional[Tuple[int, int]] = None
         self._position: Callable[[float], Tuple[int, int]] = lambda t: (0, 0)
@@ -29,9 +29,9 @@ class Clip(ABC):
         self._scale: Callable[[float], float] = lambda t: 1
         self._frame_transforms: list[Callable[[np.ndarray, float], np.ndarray]] = []
         self._has_any_transform = False
-        self._mask: Optional['Clip'] = None
+        self._mask: Optional['GraphicClip'] = None
 
-    def set_position(self, value: Union[Callable[[float], Tuple[int, int]], Tuple[int, int]]) -> 'Clip':
+    def set_position(self, value: Union[Callable[[float], Tuple[int, int]], Tuple[int, int]]) -> 'GraphicClip':
         """
         Set the position of the clip.
 
@@ -45,7 +45,7 @@ class Clip(ABC):
         self._has_any_transform = True
         return self
 
-    def set_opacity(self, value: Union[Callable[[float], float], float]) -> 'Clip':
+    def set_opacity(self, value: Union[Callable[[float], float], float]) -> 'GraphicClip':
         """
         Set the opacity of the clip.
 
@@ -59,7 +59,7 @@ class Clip(ABC):
         self._has_any_transform = True
         return self
 
-    def set_scale(self, value: Union[Callable[[float], float], float]) -> 'Clip':
+    def set_scale(self, value: Union[Callable[[float], float], float]) -> 'GraphicClip':
         """
         Set the scale of the clip.
 
@@ -73,7 +73,7 @@ class Clip(ABC):
         self._has_any_transform = True
         return self
 
-    def set_size(self, width: Optional[int] = None, height: Optional[int] = None) -> 'Clip':
+    def set_size(self, width: Optional[int] = None, height: Optional[int] = None) -> 'GraphicClip':
         """
         Set the size of the clip, maintaining aspect ratio if only one dimension is provided.
 
@@ -100,27 +100,35 @@ class Clip(ABC):
             new_w = int(width)
             new_h = int((width / self._size[0]) * self._size[1])
         else:
+            if width <= 0 or height <= 0:
+                raise ValueError(f"Invalid combination of widthxheight: {width}x{height}")
             new_w = int(width)
             new_h = int(height)
 
         self._target_size = (new_w, new_h)
         self._has_any_transform = True
         return self
-
-    def set_duration(self, duration: float) -> 'Clip':
+    
+    def set_mask(self, mask: 'GraphicClip') -> 'GraphicClip':
         """
-        Set the duration of the clip.
+        Set a mask for this clip. The mask determines which pixels are visible.
 
         Args:
-            duration: New duration in seconds
+            mask: A GraphicClip to use as mask, or None to remove mask
 
         Returns:
             Self for chaining
+
+        Example:
+            >>> image = ImageClip("photo.png")
+            >>> mask = ImageClip("mask.png")
+            >>> image.set_mask(mask)
         """
-        self._duration = duration
+        self._mask = mask
+        self._has_any_transform = True
         return self
 
-    def add_transform(self, callback: Callable[[np.ndarray, float], np.ndarray]) -> 'Clip':
+    def add_transform(self, callback: Callable[[np.ndarray, float], np.ndarray]) -> 'GraphicClip':
         """
         Apply a custom transformation to each frame at render time.
         Multiple transformations can be chained by calling this method multiple times.
@@ -151,41 +159,6 @@ class Clip(ABC):
         self._frame_transforms.append(callback)
         self._has_any_transform = True
         return self
-    
-    def set_start(self, start: float) -> 'Clip':
-        """
-        Set the start time of the clip.
-
-        Args:
-            start: New start time in seconds
-
-        Returns:
-            Self for chaining
-        """
-        self._start = start
-        return self
-
-    def set_mask(self, mask: 'Clip') -> 'Clip':
-        """
-        Set a mask for this clip.
-
-        The mask clip can have its own independent transformations (position, scale, size, etc).
-        Mask values are derived from the clip's alpha channel (if present) or grayscale conversion.
-
-        Args:
-            mask: Another clip to use as mask
-
-        Returns:
-            Self for chaining
-
-        Example:
-            >>> image = ImageClip("photo.png")
-            >>> mask = ImageClip("mask.png")
-            >>> image.set_mask(mask)
-        """
-        self._mask = mask
-        self._has_any_transform = True
-        return self
 
     def _save_as_function(self, value: Union[Callable, float, Tuple[int, int]]) -> Callable:
         """Convert static values to time-based functions"""
@@ -208,22 +181,18 @@ class Clip(ABC):
     @property
     def size(self):
         return self._target_size if self._target_size is not None else self._size
-
-    @property
-    def start(self):
-        return self._start
-
-    @property
-    def duration(self):
-        return self._duration
-
-    @property
-    def end(self):
-        return self.start + self.duration
     
     @property
     def has_any_transform(self):
         return self._has_any_transform
+    
+    def close(self):
+        """Closes the graphic clip and releases any resources"""
+        pass
+
+    def __del__(self):
+        """Ensure the graphic clip is closed when object is destroyed"""
+        self.close()
 
     @abstractmethod
     def get_frame(self, t_rel: float) -> np.ndarray:

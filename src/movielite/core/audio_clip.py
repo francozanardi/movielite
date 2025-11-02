@@ -2,8 +2,9 @@ import numpy as np
 from typing import Optional, Callable, Union, Iterator
 import subprocess
 import inspect
+from .media_clip import MediaClip
 
-class AudioClip:
+class AudioClip(MediaClip):
     """
     An audio clip that can be overlaid on video.
 
@@ -21,14 +22,15 @@ class AudioClip:
             volume: Volume multiplier (0.0 to 1.0+)
             offset: Start offset within the audio file (seconds)
         """
+        super().__init__(start, duration)
+
         self._path = path
-        self._start = start
         self._volume = volume
         self._offset = offset
-        self._duration = duration
         self._sample_transforms: list[Callable[[np.ndarray, float, int], np.ndarray]] = []
         self._load_metadata()
 
+        # Calculate actual duration
         max_available_duration = self._total_duration - offset
         if self._duration is None:
             self._duration = max_available_duration
@@ -355,34 +357,45 @@ class AudioClip:
         self._volume = volume
         return self
 
+    def set_offset(self, offset: float) -> 'AudioClip':
+        """
+        Set the offset within the source audio file.
+
+        Args:
+            offset: Offset in seconds (must be >= 0, where to start reading from the file)
+
+        Returns:
+            Self for chaining
+
+        Raises:
+            ValueError: If offset is negative
+        """
+        if offset < 0:
+            raise ValueError(f"Offset cannot be negative: {offset}")
+        self._offset = offset
+        return self
+
     @property
     def path(self):
+        """Path to the audio file"""
         return self._path
 
     @property
-    def start(self):
-        return self._start
-
-    @property
-    def duration(self):
-        return self._duration
-
-    @property
-    def end(self):
-        return self._start + self._duration
-
-    @property
     def volume(self):
+        """Volume multiplier (0.0 to 1.0+)"""
         return self._volume
 
     @property
     def offset(self):
+        """Offset within the source audio file (seconds)"""
         return self._offset
 
     @property
     def sample_rate(self):
+        """Sample rate in Hz"""
         return self._sample_rate
 
     @property
     def channels(self):
+        """Number of audio channels (1 = mono, 2 = stereo)"""
         return self._channels
