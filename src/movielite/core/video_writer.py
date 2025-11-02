@@ -322,7 +322,7 @@ class VideoWriter:
 
     def _mux_audio(self, video_path: str, output_path: str, aac_bitrate: str = "192k") -> None:
         """
-        Mix audio clips with the video.
+        Mix audio clips with the video using numpy-based mixing.
 
         Args:
             video_path: Path to the video file
@@ -333,74 +333,152 @@ class VideoWriter:
             shutil.copyfile(video_path, output_path)
             return
 
-        from pydub import AudioSegment
-        from pydub.effects import normalize
-
-        # Create silent audio base matching video duration
         try:
-            silence = AudioSegment.silent(duration=int(self._duration * 1000))
-        except Exception as e:
-            get_logger().error(f"Unable to create silent audio base. Pydub error: {e}")
-            shutil.copyfile(video_path, output_path)
-            return
+            # Determine common sample rate (use highest among all clips)
+            target_sample_rate = max(clip.sample_rate for clip in self._audio_clips)
 
-        final_mix = silence
-        for audio_clip in self._audio_clips:
+            # Determine if we need stereo (if any clip is stereo, mix as stereo)
+            target_channels = max(clip.channels for clip in self._audio_clips)
+
+            # Create silent buffer matching video duration
+            total_samples = int(self._duration * target_sample_rate)
+            mixed_audio = np.zeros((total_samples, target_channels), dtype=np.float32)
+
+            CHUNK_DURATION_SECONDS = 10.0  # Process audio in 10-second chunks
+
+            total_chunks = sum(
+                int(np.ceil(clip.duration / CHUNK_DURATION_SECONDS))
+                for clip in self._audio_clips
+            )
+
+            with tqdm(total=total_chunks, desc="Mixing audio clips") as pbar:
+                for audio_clip in self._audio_clips:
+                    try:
+                        for samples, chunk_start_time in audio_clip.iter_chunks(chunk_duration=CHUNK_DURATION_SECONDS):
+                            if len(samples) == 0:
+                                pbar.update(1)
+                                continue
+
+                            # Resample if needed
+                            if audio_clip.sample_rate != target_sample_rate:
+                                samples = self._resample_audio(samples, audio_clip.sample_rate, target_sample_rate)
+
+                            # Convert mono to stereo if needed
+                            if samples.shape[1] < target_channels:
+                                samples = np.repeat(samples, target_channels, axis=1)
+                            elif samples.shape[1] > target_channels:
+                                # Downmix stereo to mono (average channels)
+                                samples = samples.mean(axis=1, keepdims=True)
+
+                            # Calculate position in the mix (chunk_start_time is absolute in file)
+                            # We need to offset by audio_clip.start in the composition
+                            relative_time = chunk_start_time - audio_clip.offset  # Time relative to clip start
+                            abs_start_time = audio_clip.start + relative_time  # Time in composition
+                            start_sample = int(abs_start_time * target_sample_rate)
+                            end_sample = min(start_sample + len(samples), total_samples)
+
+                            if start_sample >= total_samples or start_sample < 0:
+                                pbar.update(1)
+                                continue
+
+                            # Clip samples to fit in the mix buffer
+                            if start_sample < 0:
+                                samples = samples[-start_sample:]
+                                start_sample = 0
+
+                            samples_to_add = samples[:end_sample - start_sample]
+                            mixed_audio[start_sample:end_sample] += samples_to_add
+
+                            pbar.update(1)
+
+                    except Exception as e:
+                        get_logger().warning(f"Unable to process audio clip: {audio_clip.path}. Error: {e}")
+                        continue
+
+            # Normalize to prevent clipping
+            max_val = np.abs(mixed_audio).max()
+            if max_val > 1.0:
+                mixed_audio = mixed_audio / max_val
+
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio_file:
+                temp_audio_path = temp_audio_file.name
+
             try:
-                # Load audio file
-                sfx = AudioSegment.from_file(audio_clip.path)
+                # Convert float32 [-1, 1] to int16 for WAV export
+                audio_int16 = (mixed_audio * 32767).astype(np.int16)
 
-                # Apply offset if specified
-                if audio_clip.offset > 0:
-                    offset_ms = int(audio_clip.offset * 1000)
-                    sfx = sfx[offset_ms:]
+                ffmpeg_encode_cmd = [
+                    "ffmpeg", "-y",
+                    "-f", "s16le",  # 16-bit signed little-endian PCM
+                    "-ar", str(target_sample_rate),
+                    "-ac", str(target_channels),
+                    "-i", "pipe:0",  # Read from stdin
+                    temp_audio_path
+                ]
 
-                # Apply duration limit if specified
-                if audio_clip.duration is not None:
-                    duration_ms = int(audio_clip.duration * 1000)
-                    sfx = sfx[:duration_ms]
+                subprocess.run(
+                    ffmpeg_encode_cmd,
+                    input=audio_int16.tobytes(),
+                    capture_output=True,
+                    check=True
+                )
 
-                # Apply volume
-                if audio_clip.volume > 0:
-                    db_change = 20 * math.log10(audio_clip.volume)
-                    sfx = sfx + db_change
-                else:
-                    sfx = sfx - 100  # Effectively silence
+                # Mux audio with video
+                ffmpeg_cmd = [
+                    "ffmpeg", "-y",
+                    "-i", video_path,
+                    "-i", temp_audio_path,
+                    "-map", "0:v",
+                    "-map", "1:a",
+                    "-c:v", "copy",
+                    "-c:a", "aac",
+                    "-b:a", aac_bitrate,
+                    "-shortest",
+                    output_path,
+                    "-loglevel", "error",
+                    "-hide_banner"
+                ]
 
-                start_ms = int(audio_clip.start * 1000)
-                final_mix = final_mix.overlay(sfx, position=start_ms)
+                subprocess.run(ffmpeg_cmd, check=True, capture_output=True, text=True)
+            except subprocess.CalledProcessError as e:
+                get_logger().error(f"Fatal error processing audio with ffmpeg: {e.stderr}")
+            finally:
+                if os.path.exists(temp_audio_path):
+                    os.remove(temp_audio_path)
 
-            except Exception as e:
-                get_logger().warning(f"Unable to process audio clip: {audio_clip.path}. Error: {e}")
-                continue
+        except Exception as e:
+            get_logger().error(f"Unable to mix audio: {e}")
+            shutil.copyfile(video_path, output_path)
 
-        normalized_mix = normalize(final_mix)
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio_file:
-            temp_audio_path = temp_audio_file.name
+    def _resample_audio(self, samples: np.ndarray, orig_rate: int, target_rate: int) -> np.ndarray:
+        """
+        Resample audio to a different sample rate using linear interpolation.
 
-        try:
-            normalized_mix.export(temp_audio_path, format="wav")
-            ffmpeg_cmd = [
-                "ffmpeg", "-y",
-                "-i", video_path,
-                "-i", temp_audio_path,
-                "-map", "0:v",
-                "-map", "1:a",
-                "-c:v", "copy",
-                "-c:a", "aac",
-                "-b:a", aac_bitrate,
-                "-shortest",
-                output_path,
-                "-loglevel", "error",
-                "-hide_banner"
-            ]
+        Args:
+            samples: Audio samples (n_samples, n_channels)
+            orig_rate: Original sample rate
+            target_rate: Target sample rate
 
-            subprocess.run(ffmpeg_cmd, check=True, capture_output=True, text=True)
-        except subprocess.CalledProcessError as e:
-            get_logger().error(f"Fatal error processing audio with ffmpeg: {e.stderr}")
-        finally:
-            if os.path.exists(temp_audio_path):
-                os.remove(temp_audio_path)
+        Returns:
+            Resampled audio
+        """
+        if orig_rate == target_rate:
+            return samples
+
+        duration = len(samples) / orig_rate
+        target_length = int(duration * target_rate)
+
+        # Use linear interpolation for each channel
+        resampled = np.zeros((target_length, samples.shape[1]), dtype=np.float32)
+
+        for ch in range(samples.shape[1]):
+            resampled[:, ch] = np.interp(
+                np.linspace(0, len(samples) - 1, target_length),
+                np.arange(len(samples)),
+                samples[:, ch]
+            )
+
+        return resampled
 
 
 def _get_ffmpeg_libx264_preset(quality: VideoQuality) -> str:

@@ -1,10 +1,13 @@
-from typing import Optional
+import numpy as np
+from typing import Optional, Callable, Union, Iterator
+import subprocess
+import inspect
 
 class AudioClip:
     """
     An audio clip that can be overlaid on video.
 
-    Audio clips are handled separately from visual clips since they don't render frames.
+    Audio is stored as float32 in range [-1.0, 1.0].
     """
 
     def __init__(self, path: str, start: float = 0, duration: Optional[float] = None, volume: float = 1.0, offset: float = 0):
@@ -23,13 +26,294 @@ class AudioClip:
         self._volume = volume
         self._offset = offset
         self._duration = duration
+        self._sample_transforms: list[Callable[[np.ndarray, float, int], np.ndarray]] = []
+        self._load_metadata()
 
-        # Load duration if not provided
+        max_available_duration = self._total_duration - offset
         if self._duration is None:
-            from pydub import AudioSegment
-            audio = AudioSegment.from_file(path)
-            total_duration_sec = len(audio) / 1000.0
-            self._duration = total_duration_sec - offset
+            self._duration = max_available_duration
+        elif self._duration > max_available_duration:
+            self._duration = max_available_duration
+
+    def _load_metadata(self) -> None:
+        """
+        Probe audio file metadata using ffprobe.
+        """
+        probe_cmd = [
+            "ffprobe",
+            "-v", "error",
+            "-select_streams", "a:0",
+            "-show_entries", "stream=sample_rate,channels,duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            self._path
+        ]
+
+        try:
+            result = subprocess.run(probe_cmd, capture_output=True, text=True, check=True)
+            lines = result.stdout.strip().split('\n')
+            self._sample_rate = int(lines[0])
+            self._channels = int(lines[1])
+            self._total_duration = float(lines[2])
+        except (subprocess.CalledProcessError, ValueError, IndexError) as e:
+            raise RuntimeError(f"Failed to probe audio file {self._path}: {e}")
+
+    def _load_chunk_raw(self, chunk_start: float, chunk_duration: float) -> np.ndarray:
+        """
+        Load a specific audio chunk using ffmpeg with seeking.
+        Returns raw float32 numpy array in range [-1.0, 1.0] WITHOUT effects applied.
+
+        Args:
+            chunk_start: Start time in seconds (absolute position in file)
+            chunk_duration: Duration in seconds
+
+        Returns:
+            Audio samples as float32 array of shape (n_samples, n_channels)
+        """
+        # Don't load beyond file duration
+        if chunk_start >= self._total_duration:
+            return np.zeros((0, self._channels), dtype=np.float32)
+
+        actual_duration = min(chunk_duration, self._total_duration - chunk_start)
+
+        ffmpeg_cmd = [
+            "ffmpeg",
+            "-ss", str(chunk_start),  # Seek to position (fast)
+            "-i", self._path,
+            "-t", str(actual_duration),  # Duration to read
+            "-f", "f32le",  # 32-bit float little-endian
+            "-acodec", "pcm_f32le",
+            "-ar", str(self._sample_rate),
+            "-ac", str(self._channels),
+            "-"  # Output to stdout
+        ]
+
+        try:
+            result = subprocess.run(
+                ffmpeg_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                check=True
+            )
+
+            # Convert raw bytes to numpy array (float32)
+            samples = np.frombuffer(result.stdout, dtype=np.float32)
+
+            # Reshape based on channels
+            if self._channels > 1:
+                samples = samples.reshape(-1, self._channels)
+            else:
+                samples = samples.reshape(-1, 1)
+
+            return samples
+
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"Failed to load audio chunk from {self._path}: {e}")
+
+    def process_chunk(self, chunk: np.ndarray, chunk_start_time: float) -> np.ndarray:
+        """
+        Apply volume and effects to a raw audio chunk.
+
+        Args:
+            chunk: Raw float32 samples in range [-1, 1]
+            chunk_start_time: Absolute time in seconds where this chunk starts in the original file
+
+        Returns:
+            Processed float32 samples in range [-1, 1]
+        """
+        samples = chunk.copy()
+
+        # Apply volume
+        if self._volume != 1.0:
+            samples = samples * self._volume
+
+        # Apply custom transforms
+        for transform in self._sample_transforms:
+            samples = transform(samples, chunk_start_time, self._sample_rate)
+
+        return samples
+
+    def iter_chunks(self, chunk_duration: float = 5.0) -> Iterator[tuple[np.ndarray, float]]:
+        """
+        Iterate over audio chunks sequentially.
+        Each chunk is loaded on-demand and includes effects applied.
+
+        Args:
+            chunk_duration: Duration of each chunk in seconds (default: 5.0s = ~850KB for stereo 44.1kHz)
+
+        Yields:
+            Tuple of (processed_samples, chunk_start_time) where:
+            - processed_samples: np.ndarray of shape (n_samples, n_channels) with float32 in [-1, 1]
+            - chunk_start_time: Absolute start time of this chunk in the original file
+        """
+        current_time = self._offset
+        end_time = self._offset + self._duration
+
+        while current_time < end_time:
+            actual_chunk_duration = min(chunk_duration, end_time - current_time)
+
+            # Load raw chunk
+            raw_chunk = self._load_chunk_raw(current_time, actual_chunk_duration)
+
+            if len(raw_chunk) > 0:
+                processed_chunk = self.process_chunk(raw_chunk, current_time)
+                yield processed_chunk, current_time
+
+            current_time += actual_chunk_duration
+
+    def get_samples(self, start: float = 0, end: Optional[float] = None) -> np.ndarray:
+        """
+        Get audio samples as numpy array.
+        This loads all requested samples into memory at once.
+
+        For memory-efficient processing of long audio, use iter_chunks() instead.
+
+        Args:
+            start: Start time relative to this clip's offset (seconds)
+            end: End time relative to this clip's offset (seconds, None = until the end)
+
+        Returns:
+            Numpy array of shape (n_samples, n_channels) with float32 values in [-1, 1]
+        """
+        if end is None:
+            end = self._duration
+
+        # Calculate absolute positions
+        abs_start = self._offset + start
+        abs_end = self._offset + end
+
+        duration = abs_end - abs_start
+        if duration <= 0:
+            return np.zeros((0, self._channels), dtype=np.float32)
+
+        # Load and process as single chunk
+        raw_samples = self._load_chunk_raw(abs_start, duration)
+        return self.process_chunk(raw_samples, abs_start)
+
+    def add_transform(self, callback: Callable[[np.ndarray, float, int], np.ndarray]) -> 'AudioClip':
+        """
+        Apply a custom transformation to audio samples at render time.
+        Multiple transformations can be chained by calling this method multiple times.
+
+        The callback receives:
+        - samples: np.ndarray of shape (n_samples, n_channels) with float32 values in [-1, 1]
+        - time: absolute time in seconds (start time of this sample chunk in the original file)
+        - sample_rate: sample rate in Hz
+
+        The callback should return transformed samples with the same shape.
+
+        Args:
+            callback: Function that takes (samples, time, sample_rate) and returns transformed samples
+
+        Returns:
+            Self for chaining
+
+        Example:
+            >>> def apply_reverb(samples, t, sr):
+            >>>     # Apply custom reverb effect
+            >>>     return reverb_filter(samples, sr)
+            >>> audio.add_transform(apply_reverb)
+        """
+        self._sample_transforms.append(callback)
+        return self
+
+    def fade_in(self, duration: float) -> 'AudioClip':
+        """
+        Apply a linear fade-in effect.
+
+        Args:
+            duration: Fade duration in seconds
+
+        Returns:
+            Self for chaining
+        """
+        fade_start = self._offset
+        fade_end = self._offset + duration
+
+        def fade_in_transform(samples: np.ndarray, t: float, sr: int) -> np.ndarray:
+            if t >= fade_end:
+                return samples
+
+            n_samples = len(samples)
+            result = samples.copy()
+
+            for i in range(n_samples):
+                sample_time = t + i / sr
+                if sample_time < fade_end:
+                    fade_factor = (sample_time - fade_start) / duration
+                    result[i] *= max(0, min(1, fade_factor))
+
+            return result
+
+        self._sample_transforms.append(fade_in_transform)
+        return self
+
+    def fade_out(self, duration: float) -> 'AudioClip':
+        """
+        Apply a linear fade-out effect.
+
+        Args:
+            duration: Fade duration in seconds
+
+        Returns:
+            Self for chaining
+        """
+        fade_start = self._offset + self._duration - duration
+        fade_end = self._offset + self._duration
+
+        def fade_out_transform(samples: np.ndarray, t: float, sr: int) -> np.ndarray:
+            if t + len(samples) / sr < fade_start:
+                return samples
+
+            n_samples = len(samples)
+            result = samples.copy()
+
+            for i in range(n_samples):
+                sample_time = t + i / sr
+                if sample_time >= fade_start:
+                    fade_factor = (fade_end - sample_time) / duration
+                    result[i] *= max(0, min(1, fade_factor))
+
+            return result
+
+        self._sample_transforms.append(fade_out_transform)
+        return self
+
+    def set_volume_curve(self, curve: Union[Callable[[float], float], float]) -> 'AudioClip':
+        """
+        Set a volume curve that changes over time.
+
+        Args:
+            curve: Either a float (constant volume) or a function that takes time (seconds)
+                   and returns volume multiplier (0.0 to 1.0+)
+
+        Returns:
+            Self for chaining
+
+        Example:
+            >>> # Gradual volume increase
+            >>> audio.set_volume_curve(lambda t: min(1.0, t / 5.0))
+        """
+        curve_fn = self._save_as_function(curve)
+
+        def volume_curve_transform(samples: np.ndarray, t: float, sr: int) -> np.ndarray:
+            n_samples = len(samples)
+            result = samples.copy()
+
+            for i in range(n_samples):
+                sample_time = t + i / sr
+                volume = curve_fn(sample_time)
+                result[i] *= volume
+
+            return result
+
+        self._sample_transforms.append(volume_curve_transform)
+        return self
+
+    def _save_as_function(self, value: Union[Callable, float]) -> Callable:
+        """Convert static values to time-based functions"""
+        if inspect.isfunction(value):
+            return value
+        return lambda _t, v=value: v
 
     def subclip(self, start: float, end: float) -> 'AudioClip':
         """
@@ -45,13 +329,18 @@ class AudioClip:
         if start < 0 or end > self.duration or start >= end:
             raise ValueError(f"Invalid subclip range: ({start}, {end}) for clip duration {self.duration}")
 
-        return AudioClip(
+        new_clip = AudioClip(
             path=self._path,
             start=0,
             duration=end - start,
             volume=self._volume,
             offset=self._offset + start
         )
+
+        # Copy transforms
+        new_clip._sample_transforms = self._sample_transforms.copy()
+
+        return new_clip
 
     def set_volume(self, volume: float) -> 'AudioClip':
         """
@@ -89,3 +378,11 @@ class AudioClip:
     @property
     def offset(self):
         return self._offset
+
+    @property
+    def sample_rate(self):
+        return self._sample_rate
+
+    @property
+    def channels(self):
+        return self._channels
