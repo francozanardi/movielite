@@ -166,21 +166,11 @@ class VideoWriter:
     def _extract_video_audio(self) -> None:
         """
         Extract audio from video clips and add them to the audio mix.
-
-        This ensures that when using ProcessedVideoClip (which only reads frames),
-        the audio from the video is still included in the final output.
         """
 
         for clip in self._clips:
-            # Only extract audio from video clips
             if isinstance(clip, VideoClip):
-                audio_clip = AudioClip(
-                    path=clip._path,
-                    start=clip.start,
-                    duration=clip.duration,
-                    offset=clip._offset
-                )
-                self._audio_clips.append(audio_clip)
+                self._audio_clips.append(clip.audio)
                 get_logger().debug(f"Extracted audio from video clip: {clip._path}")
 
     def _get_background_clip_and_clips_to_blend(self, clips: list[Clip], current_time: float) -> tuple[Clip | None, list[Clip]]:

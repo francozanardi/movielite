@@ -3,6 +3,7 @@ import numpy as np
 import os
 from typing import Optional
 from .clip import Clip
+from .audio_clip import AudioClip
 from .logger import get_logger
 
 # TODO: it doesn't support transparency, we must add a new VideoClip subclass that supports alpha channel
@@ -42,6 +43,14 @@ class VideoClip(Clip):
         else:
             duration = min(duration, video_duration - offset)
 
+        self._audio_clip = AudioClip(
+            path=self._path,
+            start=self._start,
+            duration=duration,
+            offset=self._offset
+        )
+
+        # Video reading state
         self._cap = None
         self._current_frame_idx = -1
         self._last_frame = None
@@ -148,6 +157,9 @@ class VideoClip(Clip):
         new_clip._current_frame_idx = -1
         new_clip._last_frame = None
 
+        # Create audio clip for the subclip
+        new_clip._audio_clip = self._audio_clip.subclip(start, end)
+
         return new_clip
 
     def _load_metadata(self, path: str) -> None:
@@ -174,3 +186,65 @@ class VideoClip(Clip):
     def fps(self):
         """Get the frames per second of this video"""
         return self._fps
+
+    @property
+    def audio(self) -> AudioClip:
+        """
+        Get the audio track of this video clip.
+
+        The audio track is synchronized with the video's start, duration, and offset.
+        You can modify the audio independently (e.g., fade in/out, volume adjustments).
+
+        Returns:
+            AudioClip associated with this video
+
+        Example:
+            >>> video = VideoClip("video.mp4", start=0, duration=10)
+            >>> video.audio.fade_in(2.0).set_volume(0.5)
+        """
+        return self._audio_clip
+
+    def set_start(self, start: float) -> 'VideoClip':
+        """
+        Set the start time of this clip in the composition.
+        Also updates the audio track's start time.
+
+        Args:
+            start: Start time in seconds
+
+        Returns:
+            Self for chaining
+        """
+        self._start = start
+        self._audio_clip._start = start
+        return self
+
+    def set_duration(self, duration: float) -> 'VideoClip':
+        """
+        Set the duration of this clip.
+        Also updates the audio track's duration.
+
+        Args:
+            duration: Duration in seconds
+
+        Returns:
+            Self for chaining
+        """
+        self._duration = duration
+        self._audio_clip._duration = duration
+        return self
+
+    def set_offset(self, offset: float) -> 'VideoClip':
+        """
+        Set the offset within the source video file.
+        Also updates the audio track's offset.
+
+        Args:
+            offset: Offset in seconds
+
+        Returns:
+            Self for chaining
+        """
+        self._offset = offset
+        self._audio_clip._offset = offset
+        return self
