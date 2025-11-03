@@ -57,6 +57,7 @@ class VideoClip(GraphicClip):
         self._cap = None
         self._last_frame_idx = -1
         self._last_frame = None
+        self._loop = False
     
     def _get_supported_video_file_extensions(self) -> list[str]:
         return ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.webp']
@@ -64,6 +65,10 @@ class VideoClip(GraphicClip):
     def get_frame(self, t_rel: float) -> np.ndarray:
         """Get frame at relative time within this clip"""
         actual_time = t_rel + self._offset
+        if self._loop:
+            video_duration = self._total_frames / self._fps
+            actual_time = (actual_time % video_duration) if video_duration > 0 else actual_time
+
         target_frame_idx = int(actual_time * self._fps)
         target_frame_idx = max(0, min(target_frame_idx, self._total_frames - 1))
 
@@ -159,6 +164,7 @@ class VideoClip(GraphicClip):
         new_clip._cap = None
         new_clip._last_frame_idx = -1
         new_clip._last_frame = None
+        new_clip._loop = self._loop
 
         # Create audio clip for the subclip
         new_clip._audio_clip = self._audio_clip.subclip(start, end)
@@ -266,4 +272,18 @@ class VideoClip(GraphicClip):
         """
         self._duration = end - self._start
         self._audio_clip._duration = self._duration
+        return self
+
+    def loop(self, enabled: bool = True) -> 'VideoClip':
+        """
+        Enable or disable looping for this video clip.
+        When enabled, the video will restart from the beginning when it reaches the end.
+
+        Args:
+            enabled: Whether to enable looping (default: True)
+
+        Returns:
+            Self for chaining
+        """
+        self._loop = enabled
         return self

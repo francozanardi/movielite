@@ -85,6 +85,10 @@ class AlphaVideoClip(VideoClip):
     def get_frame(self, t_rel: float) -> np.ndarray:
         """Get frame at relative time within this clip, in BGRA format"""
         actual_time = t_rel + self._offset
+        if self._loop:
+            video_duration = self._total_frames / self._fps
+            actual_time = (actual_time % video_duration) if video_duration > 0 else actual_time
+        
         target_frame_idx = int(actual_time * self._fps)
         target_frame_idx = max(0, min(target_frame_idx, self._total_frames - 1))
 
