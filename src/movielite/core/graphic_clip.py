@@ -6,6 +6,11 @@ from typing import Callable, Union, Tuple, Optional
 import inspect
 from .media_clip import MediaClip
 
+try:
+    from typing import Self # type: ignore[attr-defined]
+except ImportError:
+    from typing_extensions import Self
+
 class GraphicClip(MediaClip):
     """
     Base class for all visual/graphic clips (video, image, text, etc).
@@ -31,7 +36,7 @@ class GraphicClip(MediaClip):
         self._has_any_transform = False
         self._mask: Optional['GraphicClip'] = None
 
-    def set_position(self, value: Union[Callable[[float], Tuple[int, int]], Tuple[int, int]]) -> 'GraphicClip':
+    def set_position(self, value: Union[Callable[[float], Tuple[int, int]], Tuple[int, int]]) -> Self:
         """
         Set the position of the clip.
 
@@ -45,7 +50,7 @@ class GraphicClip(MediaClip):
         self._has_any_transform = True
         return self
 
-    def set_opacity(self, value: Union[Callable[[float], float], float]) -> 'GraphicClip':
+    def set_opacity(self, value: Union[Callable[[float], float], float]) -> Self:
         """
         Set the opacity of the clip.
 
@@ -59,7 +64,7 @@ class GraphicClip(MediaClip):
         self._has_any_transform = True
         return self
 
-    def set_scale(self, value: Union[Callable[[float], float], float]) -> 'GraphicClip':
+    def set_scale(self, value: Union[Callable[[float], float], float]) -> Self:
         """
         Set the scale of the clip.
 
@@ -73,7 +78,7 @@ class GraphicClip(MediaClip):
         self._has_any_transform = True
         return self
 
-    def set_size(self, width: Optional[int] = None, height: Optional[int] = None) -> 'GraphicClip':
+    def set_size(self, width: Optional[int] = None, height: Optional[int] = None) -> Self:
         """
         Set the size of the clip, maintaining aspect ratio if only one dimension is provided.
 
@@ -109,7 +114,7 @@ class GraphicClip(MediaClip):
         self._has_any_transform = True
         return self
     
-    def set_mask(self, mask: 'GraphicClip') -> 'GraphicClip':
+    def set_mask(self, mask: 'GraphicClip') -> Self:
         """
         Set a mask for this clip. The mask determines which pixels are visible.
 
@@ -128,7 +133,7 @@ class GraphicClip(MediaClip):
         self._has_any_transform = True
         return self
 
-    def add_transform(self, callback: Callable[[np.ndarray, float], np.ndarray]) -> 'GraphicClip':
+    def add_transform(self, callback: Callable[[np.ndarray, float], np.ndarray]) -> Self:
         """
         Apply a custom transformation to each frame at render time.
         Multiple transformations can be chained by calling this method multiple times.

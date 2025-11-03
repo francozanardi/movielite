@@ -4,6 +4,11 @@ import subprocess
 import inspect
 from ..core import MediaClip
 
+try:
+    from typing import Self # type: ignore[attr-defined]
+except ImportError:
+    from typing_extensions import Self
+
 class AudioClip(MediaClip):
     """
     An audio clip that can be overlaid on video.
@@ -213,7 +218,7 @@ class AudioClip(MediaClip):
         raw_samples = self._load_chunk_raw(abs_start, duration)
         return self.process_chunk(raw_samples, abs_start)
 
-    def add_transform(self, callback: Callable[[np.ndarray, float, int], np.ndarray]) -> 'AudioClip':
+    def add_transform(self, callback: Callable[[np.ndarray, float, int], np.ndarray]) -> Self:
         """
         Apply a custom transformation to audio samples at render time.
         Multiple transformations can be chained by calling this method multiple times.
@@ -240,7 +245,7 @@ class AudioClip(MediaClip):
         self._sample_transforms.append(callback)
         return self
 
-    def fade_in(self, duration: float) -> 'AudioClip':
+    def fade_in(self, duration: float) -> Self:
         """
         Apply a linear fade-in effect.
 
@@ -271,7 +276,7 @@ class AudioClip(MediaClip):
         self._sample_transforms.append(fade_in_transform)
         return self
 
-    def fade_out(self, duration: float) -> 'AudioClip':
+    def fade_out(self, duration: float) -> Self:
         """
         Apply a linear fade-out effect.
 
@@ -302,7 +307,7 @@ class AudioClip(MediaClip):
         self._sample_transforms.append(fade_out_transform)
         return self
 
-    def set_volume_curve(self, curve: Union[Callable[[float], float], float]) -> 'AudioClip':
+    def set_volume_curve(self, curve: Union[Callable[[float], float], float]) -> Self:
         """
         Set a volume curve that changes over time.
 
@@ -339,7 +344,7 @@ class AudioClip(MediaClip):
             return value
         return lambda _t, v=value: v
 
-    def subclip(self, start: float, end: float) -> 'AudioClip':
+    def subclip(self, start: float, end: float) -> Self:
         """
         Extract a subclip from this audio.
 
@@ -367,7 +372,7 @@ class AudioClip(MediaClip):
 
         return new_clip
 
-    def set_volume(self, volume: float) -> 'AudioClip':
+    def set_volume(self, volume: float) -> Self:
         """
         Set the volume of this audio clip.
 
@@ -380,7 +385,7 @@ class AudioClip(MediaClip):
         self._volume = volume
         return self
 
-    def set_offset(self, offset: float) -> 'AudioClip':
+    def set_offset(self, offset: float) -> Self:
         """
         Set the offset within the source audio file.
 
@@ -428,7 +433,7 @@ class AudioClip(MediaClip):
         """Whether this clip has actual audio (False for silent/no audio clips)"""
         return self._has_audio
 
-    def loop(self, enabled: bool = True) -> 'AudioClip':
+    def loop(self, enabled: bool = True) -> Self:
         """
         Enable or disable looping for this audio clip.
         When enabled, the audio will restart from the beginning when it reaches the end.

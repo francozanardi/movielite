@@ -1,5 +1,9 @@
 from abc import ABC
-from typing import Optional
+
+try:
+    from typing import Self # type: ignore[attr-defined]
+except ImportError:
+    from typing_extensions import Self
 
 class MediaClip(ABC):
     """
@@ -34,7 +38,7 @@ class MediaClip(ABC):
         """End time of the clip in the composition (seconds)"""
         return self._start + self._duration
 
-    def set_start(self, start: float) -> 'MediaClip':
+    def set_start(self, start: float) -> Self:
         """
         Set the start time of this clip in the composition.
 
@@ -52,7 +56,7 @@ class MediaClip(ABC):
         self._start = start
         return self
 
-    def set_duration(self, duration: float) -> 'MediaClip':
+    def set_duration(self, duration: float) -> Self:
         """
         Set the duration of this clip.
 
@@ -70,7 +74,7 @@ class MediaClip(ABC):
         self._duration = duration
         return self
 
-    def set_end(self, end: float) -> 'MediaClip':
+    def set_end(self, end: float) -> Self:
         """
         Set the end time of this clip in the composition.
         Adjusts duration to match: duration = end - start

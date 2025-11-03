@@ -6,6 +6,11 @@ from ..core import GraphicClip
 from ..audio import AudioClip
 from ..logger import get_logger
 
+try:
+    from typing import Self # type: ignore[attr-defined]
+except ImportError:
+    from typing_extensions import Self
+
 class VideoClip(GraphicClip):
     """
     A video clip that loads and processes frames in BGR format (no alpha channel).
@@ -131,7 +136,7 @@ class VideoClip(GraphicClip):
         if hasattr(self, '_last_frame'):
             self._last_frame = None
 
-    def subclip(self, start: float, end: float) -> 'VideoClip':
+    def subclip(self, start: float, end: float) -> Self:
         """
         Extract a subclip from this video.
 
@@ -213,7 +218,7 @@ class VideoClip(GraphicClip):
         """
         return self._audio_clip
 
-    def set_start(self, start: float) -> 'VideoClip':
+    def set_start(self, start: float) -> Self:
         """
         Set the start time of this clip in the composition.
         Also updates the audio track's start time.
@@ -228,7 +233,7 @@ class VideoClip(GraphicClip):
         self._audio_clip._start = start
         return self
 
-    def set_duration(self, duration: float) -> 'VideoClip':
+    def set_duration(self, duration: float) -> Self:
         """
         Set the duration of this clip.
         Also updates the audio track's duration.
@@ -243,7 +248,7 @@ class VideoClip(GraphicClip):
         self._audio_clip._duration = duration
         return self
 
-    def set_offset(self, offset: float) -> 'VideoClip':
+    def set_offset(self, offset: float) -> Self:
         """
         Set the offset within the source video file.
         Also updates the audio track's offset.
@@ -258,7 +263,7 @@ class VideoClip(GraphicClip):
         self._audio_clip._offset = offset
         return self
 
-    def set_end(self, end: float) -> 'VideoClip':
+    def set_end(self, end: float) -> Self:
         """
         Set the end time of this clip in the composition.
         Also updates the audio track's end time.
@@ -274,7 +279,7 @@ class VideoClip(GraphicClip):
         self._audio_clip._duration = self._duration
         return self
 
-    def loop(self, enabled: bool = True) -> 'VideoClip':
+    def loop(self, enabled: bool = True) -> Self:
         """
         Enable or disable looping for this video clip.
         When enabled, the video will restart from the beginning when it reaches the end.

@@ -4,6 +4,11 @@ import numpy as np
 import subprocess
 from typing import Optional
 
+try:
+    from typing import Self # type: ignore[attr-defined]
+except ImportError:
+    from typing_extensions import Self
+
 class AlphaVideoClip(VideoClip):
     """
     A video clip that loads and processes frames in BGRA format (with alpha channel).
@@ -163,7 +168,7 @@ class AlphaVideoClip(VideoClip):
         super().close()
         self._close_ffmpeg()
 
-    def subclip(self, start: float, end: float) -> 'AlphaVideoClip':
+    def subclip(self, start: float, end: float) -> Self:
         """
         Extract a subclip from this video.
 
