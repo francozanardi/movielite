@@ -28,7 +28,7 @@ class VideoWriter:
             self,
             output_path: str,
             fps: float = 30,
-            size: Tuple[int, int] = (1920, 1080),
+            size: Optional[Tuple[int, int]] = None,
             duration: Optional[float] = None,
         ):
         """
@@ -37,15 +37,15 @@ class VideoWriter:
         Args:
             output_path: Path where the final video will be saved
             fps: Frames per second for the output video
-            size: Video dimensions (width, height)
+            size: Video dimensions (width, height). If None, auto-calculated from clips
             duration: Total duration in seconds (if None, auto-calculated from clips)
         """
-        if size[0] <= 0 or size[1] <= 0:
+        if size is not None and (size[0] <= 0 or size[1] <= 0):
             raise ValueError(f"Invalid video size: {size}. Width and height must be greater than 0.")
 
         self._output: str = output_path
         self._fps: float = fps
-        self._size: Tuple[int, int] = size
+        self._size: Optional[Tuple[int, int]] = size
         self._duration: Optional[float] = duration
         self._graphic_clips: List[GraphicClip] = []
         self._audio_clips: List[AudioClip] = []
@@ -109,6 +109,13 @@ class VideoWriter:
 
         if self._duration <= 0:
             raise ValueError(f"Invalid duration: {self._duration}")
+
+        # Calculate size if not specified
+        if self._size is None:
+            if self._graphic_clips:
+                self._size = self._graphic_clips[0].size
+            else:
+                raise ValueError("No clips added and no size specified")
 
         total_frames = int(self._duration * self._fps)
         temp_dir = tempfile.mkdtemp()
