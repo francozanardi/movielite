@@ -80,7 +80,7 @@ class VideoWriter:
             self._audio_clips.append(clip)
         elif isinstance(clip, GraphicClip):
             self._graphic_clips.append(clip)
-            if isinstance(clip, VideoClip):
+            if isinstance(clip, VideoClip) and clip.audio.has_audio:
                 self._audio_clips.append(clip.audio)
         else:
             raise TypeError(f"Unsupported clip type: {type(clip)}")

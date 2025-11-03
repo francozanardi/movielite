@@ -6,10 +6,13 @@ from .graphic_clip import GraphicClip
 from .audio_clip import AudioClip
 from .logger import get_logger
 
-# TODO: it doesn't support transparency, we must add a new VideoClip subclass that supports alpha channel
 class VideoClip(GraphicClip):
     """
-    A video clip that loads and processes frames.
+    A video clip that loads and processes frames in BGR format (no alpha channel).
+
+    This class is optimized for videos without transparency. For videos with alpha channel
+    (transparency), use AlphaVideoClip instead. Note that AlphaVideoClip has a performance
+    penalty (~33% more memory per frame) due to the additional alpha channel.
     """
 
     def __init__(self, path: str, start: float = 0, duration: Optional[float] = None, offset: float = 0):
@@ -25,7 +28,7 @@ class VideoClip(GraphicClip):
         super().__init__(start, duration)
 
         ext = os.path.splitext(path)[1].lower()
-        if ext not in ['.mp4', '.mov', '.avi', '.mkv', '.webm']:
+        if ext not in self._get_supported_video_file_extensions():
             raise ValueError(f"Unsupported video format: {ext}")
 
         if not os.path.exists(path):
@@ -52,47 +55,48 @@ class VideoClip(GraphicClip):
 
         # Video reading state
         self._cap = None
-        self._current_frame_idx = -1
+        self._last_frame_idx = -1
         self._last_frame = None
+    
+    def _get_supported_video_file_extensions(self) -> list[str]:
+        return ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.webp']
 
     def get_frame(self, t_rel: float) -> np.ndarray:
         """Get frame at relative time within this clip"""
         actual_time = t_rel + self._offset
-        frame_idx = int(actual_time * self._fps)
-        frame_idx = max(0, min(frame_idx, self._total_frames - 1))
+        target_frame_idx = int(actual_time * self._fps)
+        target_frame_idx = max(0, min(target_frame_idx, self._total_frames - 1))
 
-        # Open capture if not already open
         if self._cap is None:
             self._cap = cv2.VideoCapture(self._path)
-            self._current_frame_idx = -1
+            self._last_frame_idx = -1
             get_logger().debug(f"ProcessedVideoClip: Opened video capture for {self._path}")
 
-        if frame_idx == self._current_frame_idx and self._last_frame is not None:
+        if target_frame_idx == self._last_frame_idx and self._last_frame is not None:
             return self._last_frame
-        elif frame_idx == self._current_frame_idx + 1:
-            # Read next frame sequentially
-            ret, frame = self._cap.read()
-            if not ret:
-                get_logger().warning(f"Failed to read frame {frame_idx} from {self._path}")
-                return np.zeros((self._size[1], self._size[0], 3), dtype=np.uint8)
-            self._current_frame_idx = frame_idx
-        elif frame_idx > self._current_frame_idx and frame_idx - self._current_frame_idx <= 5:
-            # Skip a few frames (still relatively fast)
-            for _ in range(frame_idx - self._current_frame_idx):
-                ret, frame = self._cap.read()
-                if not ret:
-                    get_logger().warning(f"Failed to read frame {frame_idx} from {self._path}")
-                    return np.zeros((self._size[1], self._size[0], 3), dtype=np.uint8)
-            self._current_frame_idx = frame_idx
-        else:
+        
+        if target_frame_idx < self._last_frame_idx or target_frame_idx - self._last_frame_idx > 5:
             # Need to seek (slower, but necessary for random access)
-            self._cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+            self._cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame_idx)
             ret, frame = self._cap.read()
             if not ret:
-                get_logger().warning(f"Failed to read frame {frame_idx} from {self._path}")
+                get_logger().warning(f"Failed to read frame {target_frame_idx} from {self._path}")
                 return np.zeros((self._size[1], self._size[0], 3), dtype=np.uint8)
-            self._current_frame_idx = frame_idx
-
+            
+            self._last_frame_idx = target_frame_idx
+            self._last_frame = frame
+            return frame
+        
+        current_frame_idx = self._last_frame_idx
+        while current_frame_idx < target_frame_idx:
+            ret, frame = self._cap.read()
+            if not ret:
+                get_logger().warning(f"Failed to read frame {target_frame_idx} from {self._path}")
+                frame = np.zeros((self._size[1], self._size[0], 3), dtype=np.uint8)
+            
+            current_frame_idx = current_frame_idx + 1
+        
+        self._last_frame_idx = current_frame_idx
         self._last_frame = frame
         return frame
 
@@ -114,10 +118,12 @@ class VideoClip(GraphicClip):
     def close(self):
         """Close the video file"""
         super().close()
-        if self._cap is not None:
+        if hasattr(self, '_cap') and self._cap is not None:
             self._cap.release()
             self._cap = None
-            self._current_frame_idx = -1
+        if hasattr(self, '_last_frame_idx'):
+            self._last_frame_idx = -1
+        if hasattr(self, '_last_frame'):
             self._last_frame = None
 
     def subclip(self, start: float, end: float) -> 'VideoClip':
@@ -135,7 +141,7 @@ class VideoClip(GraphicClip):
             raise ValueError(f"Invalid subclip range: ({start}, {end}) for clip duration {self.duration}")
 
         # Create a new instance with adjusted timing
-        new_clip = VideoClip.__new__(VideoClip)
+        new_clip = self.__new__(VideoClip)
         new_clip._path = self._path
         new_clip._fps = self._fps
         new_clip._size = self._size
@@ -151,7 +157,7 @@ class VideoClip(GraphicClip):
         new_clip._has_any_transform = self._has_any_transform
         new_clip._mask = self._mask
         new_clip._cap = None
-        new_clip._current_frame_idx = -1
+        new_clip._last_frame_idx = -1
         new_clip._last_frame = None
 
         # Create audio clip for the subclip

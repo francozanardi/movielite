@@ -28,6 +28,7 @@ class AudioClip(MediaClip):
         self._volume = volume
         self._offset = offset
         self._sample_transforms: list[Callable[[np.ndarray, float, int], np.ndarray]] = []
+        self._has_audio = True
         self._load_metadata()
 
         # Calculate actual duration
@@ -40,6 +41,7 @@ class AudioClip(MediaClip):
     def _load_metadata(self) -> None:
         """
         Probe audio file metadata using ffprobe.
+        If the file has no audio stream, creates a silent audio clip.
         """
         probe_cmd = [
             "ffprobe",
@@ -56,8 +58,18 @@ class AudioClip(MediaClip):
             self._sample_rate = int(lines[0])
             self._channels = int(lines[1])
             self._total_duration = float(lines[2])
-        except (subprocess.CalledProcessError, ValueError, IndexError) as e:
-            raise RuntimeError(f"Failed to probe audio file {self._path}: {e}")
+            self._has_audio = True
+
+        except (subprocess.CalledProcessError, ValueError, IndexError):
+            # No audio or invalid audio
+            self._set_silent_defaults()
+
+    def _set_silent_defaults(self) -> None:
+        """Set defaults for silent/no audio clips"""
+        self._sample_rate = 44100
+        self._channels = 2
+        self._total_duration = 0.0
+        self._has_audio = False
 
     def _load_chunk_raw(self, chunk_start: float, chunk_duration: float) -> np.ndarray:
         """
@@ -71,6 +83,11 @@ class AudioClip(MediaClip):
         Returns:
             Audio samples as float32 array of shape (n_samples, n_channels)
         """
+        # Return silence if no audio
+        if not self._has_audio:
+            num_samples = int(chunk_duration * self._sample_rate)
+            return np.zeros((num_samples, self._channels), dtype=np.float32)
+
         # Don't load beyond file duration
         if chunk_start >= self._total_duration:
             return np.zeros((0, self._channels), dtype=np.float32)
@@ -399,3 +416,8 @@ class AudioClip(MediaClip):
     def channels(self):
         """Number of audio channels (1 = mono, 2 = stereo)"""
         return self._channels
+
+    @property
+    def has_audio(self):
+        """Whether this clip has actual audio (False for silent/no audio clips)"""
+        return self._has_audio
