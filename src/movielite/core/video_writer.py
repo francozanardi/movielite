@@ -9,10 +9,10 @@ from typing import Tuple, List, Optional
 from tqdm import tqdm
 from .media_clip import MediaClip
 from .graphic_clip import GraphicClip
-from .audio_clip import AudioClip
-from .enums import VideoQuality
-from .logger import get_logger
-from .video_clip import VideoClip
+from ..audio import AudioClip
+from ..enums import VideoQuality
+from ..logger import get_logger
+from ..video import VideoClip
 
 class VideoWriter:
     """

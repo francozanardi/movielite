@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from typing import Union
-from .graphic_clip import GraphicClip
+from ..core import GraphicClip
 
 class ImageClip(GraphicClip):
     """

@@ -2,9 +2,9 @@ import cv2
 import numpy as np
 import os
 from typing import Optional
-from .graphic_clip import GraphicClip
-from .audio_clip import AudioClip
-from .logger import get_logger
+from ..core import GraphicClip
+from ..audio import AudioClip
+from ..logger import get_logger
 
 class VideoClip(GraphicClip):
     """

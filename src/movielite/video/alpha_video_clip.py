@@ -1,5 +1,5 @@
 from .video_clip import VideoClip
-from .logger import get_logger
+from ..logger import get_logger
 import numpy as np
 import subprocess
 from typing import Optional

@@ -2,7 +2,7 @@ import numpy as np
 from typing import Optional, Callable, Union, Iterator
 import subprocess
 import inspect
-from .media_clip import MediaClip
+from ..core import MediaClip
 
 class AudioClip(MediaClip):
     """

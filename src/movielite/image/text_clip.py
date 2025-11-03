@@ -1,7 +1,7 @@
 import numpy as np
 from typing import Optional
-from .graphic_clip import GraphicClip
-from .logger import get_logger
+from ..core import GraphicClip
+from ..logger import get_logger
 import cv2
 from pictex import Canvas
 

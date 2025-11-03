@@ -19,9 +19,9 @@ def check_dependencies():
     missing_str = " and ".join(missing)
     
     error_message = (
-        f"\n\n--- Pycaps Dependency Error ---\n"
+        f"\n\n--- Movielite Dependency Error ---\n"
         f"Could not find required command(s): {missing_str}\n\n"
-        f"pycaps requires a full installation of FFmpeg (which includes both ffmpeg and ffprobe)\n"
+        f"Movielite requires a full installation of FFmpeg (which includes both ffmpeg and ffprobe)\n"
         f"to be available in your system's PATH.\n\n"
         f"These are essential for audio and video processing.\n\n"
         f"To fix this, please:\n"
