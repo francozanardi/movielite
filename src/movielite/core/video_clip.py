@@ -278,6 +278,7 @@ class VideoClip(GraphicClip):
         """
         Enable or disable looping for this video clip.
         When enabled, the video will restart from the beginning when it reaches the end.
+        Also applies looping to the audio track.
 
         Args:
             enabled: Whether to enable looping (default: True)
@@ -286,4 +287,5 @@ class VideoClip(GraphicClip):
             Self for chaining
         """
         self._loop = enabled
+        self._audio_clip._loop = enabled
         return self

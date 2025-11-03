@@ -29,6 +29,7 @@ class AudioClip(MediaClip):
         self._offset = offset
         self._sample_transforms: list[Callable[[np.ndarray, float, int], np.ndarray]] = []
         self._has_audio = True
+        self._loop = False
         self._load_metadata()
 
         # Calculate actual duration
@@ -87,6 +88,10 @@ class AudioClip(MediaClip):
         if not self._has_audio:
             num_samples = int(chunk_duration * self._sample_rate)
             return np.zeros((num_samples, self._channels), dtype=np.float32)
+
+        # Apply looping if enabled
+        if self._loop and self._total_duration > 0:
+            chunk_start = chunk_start % self._total_duration
 
         # Don't load beyond file duration
         if chunk_start >= self._total_duration:
@@ -356,8 +361,9 @@ class AudioClip(MediaClip):
             offset=self._offset + start
         )
 
-        # Copy transforms
+        # Copy transforms and loop setting
         new_clip._sample_transforms = self._sample_transforms.copy()
+        new_clip._loop = self._loop
 
         return new_clip
 
@@ -421,3 +427,17 @@ class AudioClip(MediaClip):
     def has_audio(self):
         """Whether this clip has actual audio (False for silent/no audio clips)"""
         return self._has_audio
+
+    def loop(self, enabled: bool = True) -> 'AudioClip':
+        """
+        Enable or disable looping for this audio clip.
+        When enabled, the audio will restart from the beginning when it reaches the end.
+
+        Args:
+            enabled: Whether to enable looping (default: True)
+
+        Returns:
+            Self for chaining
+        """
+        self._loop = enabled
+        return self
