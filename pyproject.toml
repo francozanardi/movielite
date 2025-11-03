@@ -30,6 +30,7 @@ classifiers = [
 
 dependencies = [
     "numpy",
+    "numba",
     "opencv-python",
     "multiprocess",
     "tqdm",
