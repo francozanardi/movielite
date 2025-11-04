@@ -46,15 +46,15 @@ class VideoClip(GraphicClip):
 
         # Determine actual duration
         video_duration = self._total_frames / self._fps
-        if duration is None:
-            duration = video_duration - offset
+        if self._duration is None:
+            self._duration = video_duration - offset
         else:
-            duration = min(duration, video_duration - offset)
+            self._duration = min(self._duration, video_duration - offset)
 
         self._audio_clip = AudioClip(
             path=self._path,
             start=self._start,
-            duration=duration,
+            duration=self._duration,
             offset=self._offset
         )
 
@@ -157,7 +157,7 @@ class VideoClip(GraphicClip):
         new_clip._size = self._size
         new_clip._total_frames = self._total_frames
         new_clip._offset = self._offset + start
-        new_clip._start = 0
+        new_clip._start = self._start
         new_clip._duration = end - start
         new_clip._position = self._position
         new_clip._opacity = self._opacity
