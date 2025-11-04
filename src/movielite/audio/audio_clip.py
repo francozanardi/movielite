@@ -248,68 +248,6 @@ class AudioClip(MediaClip):
         self._sample_transforms.append(callback)
         return self
 
-    def fade_in(self, duration: float) -> Self:
-        """
-        Apply a linear fade-in effect.
-
-        Args:
-            duration: Fade duration in seconds
-
-        Returns:
-            Self for chaining
-        """
-        fade_start = self._offset
-        fade_end = self._offset + duration
-
-        def fade_in_transform(samples: np.ndarray, t: float, sr: int) -> np.ndarray:
-            if t >= fade_end:
-                return samples
-
-            n_samples = len(samples)
-            result = samples.copy()
-
-            for i in range(n_samples):
-                sample_time = t + i / sr
-                if sample_time < fade_end:
-                    fade_factor = (sample_time - fade_start) / duration
-                    result[i] *= max(0, min(1, fade_factor))
-
-            return result
-
-        self._sample_transforms.append(fade_in_transform)
-        return self
-
-    def fade_out(self, duration: float) -> Self:
-        """
-        Apply a linear fade-out effect.
-
-        Args:
-            duration: Fade duration in seconds
-
-        Returns:
-            Self for chaining
-        """
-        fade_start = self._offset + self._duration - duration
-        fade_end = self._offset + self._duration
-
-        def fade_out_transform(samples: np.ndarray, t: float, sr: int) -> np.ndarray:
-            if t + len(samples) / sr < fade_start:
-                return samples
-
-            n_samples = len(samples)
-            result = samples.copy()
-
-            for i in range(n_samples):
-                sample_time = t + i / sr
-                if sample_time >= fade_start:
-                    fade_factor = (fade_end - sample_time) / duration
-                    result[i] *= max(0, min(1, fade_factor))
-
-            return result
-
-        self._sample_transforms.append(fade_out_transform)
-        return self
-
     def set_volume_curve(self, curve: Union[Callable[[float], float], float]) -> Self:
         """
         Set a volume curve that changes over time.
@@ -363,7 +301,7 @@ class AudioClip(MediaClip):
 
         new_clip = AudioClip(
             path=self._path,
-            start=0,
+            start=self._start,
             duration=end - start,
             volume=self._volume,
             offset=self._offset + start
