@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import numba
 from abc import abstractmethod
-from typing import Callable, Union, Tuple, Optional
+from typing import Callable, Union, Tuple, Optional, TYPE_CHECKING
 import inspect
 from .media_clip import MediaClip
 
@@ -10,6 +10,10 @@ try:
     from typing import Self # type: ignore[attr-defined]
 except ImportError:
     from typing_extensions import Self
+
+if TYPE_CHECKING:
+    from ..vfx.base import GraphicEffect
+    from ..vtx.base import Transition
 
 class GraphicClip(MediaClip):
     """
@@ -163,6 +167,41 @@ class GraphicClip(MediaClip):
         """
         self._frame_transforms.append(callback)
         self._has_any_transform = True
+        return self
+
+    def add_effect(self, effect: 'GraphicEffect') -> Self:
+        """
+        Apply a visual effect to this clip.
+
+        Args:
+            effect: A GraphicEffect instance to apply
+
+        Returns:
+            Self for chaining
+
+        Example:
+            >>> from movielite import vfx
+            >>> clip.add_effect(vfx.FadeIn(2.0)).add_effect(vfx.FadeOut(1.5))
+        """
+        effect.apply(self)
+        return self
+
+    def add_transition(self, other_clip: 'GraphicClip', transition: 'Transition') -> Self:
+        """
+        Apply a transition effect between this clip and another clip.
+
+        Args:
+            other_clip: The other GraphicClip to transition to/from
+            transition: A Transition instance to apply
+
+        Returns:
+            Self for chaining
+
+        Example:
+            >>> from movielite import vtx
+            >>> clip1.add_transition(clip2, vtx.CrossFade(0.5))
+        """
+        transition.apply(self, other_clip)
         return self
 
     def _save_as_function(self, value: Union[Callable, float, Tuple[int, int]]) -> Callable:

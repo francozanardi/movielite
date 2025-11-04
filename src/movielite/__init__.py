@@ -18,6 +18,7 @@ from .video import VideoClip, AlphaVideoClip
 from .image import ImageClip, TextClip
 from .enums import VideoQuality
 from .logger import get_logger, set_log_level
+from . import vfx, afx, vtx
 
 __version__ = "0.1.0"
 
@@ -33,4 +34,7 @@ __all__ = [
     "VideoQuality",
     "get_logger",
     "set_log_level",
+    "vfx",
+    "afx",
+    "vtx",
 ]

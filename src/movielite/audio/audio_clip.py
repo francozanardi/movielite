@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Optional, Callable, Union, Iterator
+from typing import Optional, Callable, Union, Iterator, TYPE_CHECKING
 import subprocess
 import inspect
 from ..core import MediaClip
@@ -8,6 +8,9 @@ try:
     from typing import Self # type: ignore[attr-defined]
 except ImportError:
     from typing_extensions import Self
+
+if TYPE_CHECKING:
+    from ..afx.base import AudioEffect
 
 class AudioClip(MediaClip):
     """
@@ -445,4 +448,21 @@ class AudioClip(MediaClip):
             Self for chaining
         """
         self._loop = enabled
+        return self
+
+    def add_effect(self, effect: 'AudioEffect') -> Self:
+        """
+        Apply an audio effect to this clip.
+
+        Args:
+            effect: An AudioEffect instance to apply
+
+        Returns:
+            Self for chaining
+
+        Example:
+            >>> from movielite import afx
+            >>> clip.add_effect(afx.FadeIn(2.0)).add_effect(afx.FadeOut(1.5))
+        """
+        effect.apply(self)
         return self
