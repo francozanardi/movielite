@@ -19,8 +19,8 @@ class FadeIn(AudioEffect):
 
     def apply(self, clip: 'AudioClip') -> None:
         """Apply fade in effect by adding a transform to the clip"""
-        fade_start = clip._offset
-        fade_end = clip._offset + self.duration
+        fade_start = clip.offset
+        fade_end = clip.offset + self.duration
 
         def fade_in_transform(samples: np.ndarray, t: float, sr: int) -> np.ndarray:
             if t >= fade_end:
@@ -37,7 +37,7 @@ class FadeIn(AudioEffect):
 
             return result
 
-        clip._sample_transforms.append(fade_in_transform)
+        clip.add_transform(fade_in_transform)
 
 
 class FadeOut(AudioEffect):
@@ -57,8 +57,8 @@ class FadeOut(AudioEffect):
 
     def apply(self, clip: 'AudioClip') -> None:
         """Apply fade out effect by adding a transform to the clip"""
-        fade_start = clip._offset + clip._duration - self.duration
-        fade_end = clip._offset + clip._duration
+        fade_start = clip.offset + clip.duration - self.duration
+        fade_end = clip.offset + clip.duration
 
         def fade_out_transform(samples: np.ndarray, t: float, sr: int) -> np.ndarray:
             if t + len(samples) / sr < fade_start:
@@ -75,4 +75,4 @@ class FadeOut(AudioEffect):
 
             return result
 
-        clip._sample_transforms.append(fade_out_transform)
+        clip.add_transform(fade_out_transform)

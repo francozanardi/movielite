@@ -186,12 +186,12 @@ class GraphicClip(MediaClip):
         effect.apply(self)
         return self
 
-    def add_transition(self, other_clip: 'GraphicClip', transition: 'Transition') -> Self:
+    def add_transition(self, next_clip: 'GraphicClip', transition: 'Transition') -> Self:
         """
         Apply a transition effect between this clip and another clip.
 
         Args:
-            other_clip: The other GraphicClip to transition to/from
+            next_clip: The other GraphicClip to transition to/from
             transition: A Transition instance to apply
 
         Returns:
@@ -201,7 +201,7 @@ class GraphicClip(MediaClip):
             >>> from movielite import vtx
             >>> clip1.add_transition(clip2, vtx.CrossFade(0.5))
         """
-        transition.apply(self, other_clip)
+        transition.apply(self, next_clip)
         return self
 
     def _save_as_function(self, value: Union[Callable, float, Tuple[int, int]]) -> Callable:
