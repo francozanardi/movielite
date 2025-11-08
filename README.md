@@ -418,14 +418,6 @@ Additional examples are available in the [examples/](examples/) directory:
 
 MIT License - see [LICENSE](LICENSE) for details.
 
-## Contributing
-
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## Acknowledgments
-
-This library was extracted and refactored from the [pycaps](https://github.com/francozanardi/pycaps) project.
-
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for version history and changes.
