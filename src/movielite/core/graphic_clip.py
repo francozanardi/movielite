@@ -350,6 +350,13 @@ class GraphicClip(MediaClip):
             # To keep in mind: if we get rid of float32 frames and use always uint8 frames,
             #  we will need to return a copy of the frame here if 'will_need_blending' is True
             #  It would be specially a problem with image clip as background
+
+            # Possible improvment to research about:
+            #  When will_need_blending is True, we are allocating a new chunk in memory for the whole frame in float32
+            #  However, this allocation + copy in numpy, could be slower than:
+            #   1. using our empty frame already reserved
+            #   2. copying the 'frame' into this empty frame array using numba
+            #   3. using memset(0) over the empty frame at the end of the loop (fill(0))
             return frame.astype(np.float32) if will_need_blending else frame
         
         if (not need_blending):
