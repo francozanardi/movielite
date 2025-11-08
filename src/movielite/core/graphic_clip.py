@@ -37,7 +37,6 @@ class GraphicClip(MediaClip):
         self._opacity: Callable[[float], float] = lambda t: 1
         self._scale: Callable[[float], float] = lambda t: 1
         self._frame_transforms: list[Callable[[np.ndarray, float], np.ndarray]] = []
-        self._has_any_transform = False
         self._mask: Optional['GraphicClip'] = None
 
     def set_position(self, value: Union[Callable[[float], Tuple[int, int]], Tuple[int, int]]) -> Self:
@@ -51,7 +50,6 @@ class GraphicClip(MediaClip):
             Self for chaining
         """
         self._position = self._save_as_function(value)
-        self._has_any_transform = True
         return self
 
     def set_opacity(self, value: Union[Callable[[float], float], float]) -> Self:
@@ -65,7 +63,6 @@ class GraphicClip(MediaClip):
             Self for chaining
         """
         self._opacity = self._save_as_function(value)
-        self._has_any_transform = True
         return self
 
     def set_scale(self, value: Union[Callable[[float], float], float]) -> Self:
@@ -79,7 +76,6 @@ class GraphicClip(MediaClip):
             Self for chaining
         """
         self._scale = self._save_as_function(value)
-        self._has_any_transform = True
         return self
 
     def set_size(self, width: Optional[int] = None, height: Optional[int] = None) -> Self:
@@ -115,7 +111,6 @@ class GraphicClip(MediaClip):
             new_h = int(height)
 
         self._target_size = (new_w, new_h)
-        self._has_any_transform = True
         return self
     
     def set_mask(self, mask: 'GraphicClip') -> Self:
@@ -134,7 +129,6 @@ class GraphicClip(MediaClip):
             >>> image.set_mask(mask)
         """
         self._mask = mask
-        self._has_any_transform = True
         return self
 
     def add_transform(self, callback: Callable[[np.ndarray, float], np.ndarray]) -> Self:
@@ -166,7 +160,6 @@ class GraphicClip(MediaClip):
             >>> clip.add_transform(make_sepia).add_transform(add_vignette)
         """
         self._frame_transforms.append(callback)
-        self._has_any_transform = True
         return self
 
     def add_effect(self, effect: 'GraphicEffect') -> Self:
@@ -225,10 +218,6 @@ class GraphicClip(MediaClip):
     @property
     def size(self):
         return self._target_size if self._target_size is not None else self._size
-    
-    @property
-    def has_any_transform(self):
-        return self._has_any_transform
     
     def close(self):
         """Closes the graphic clip and releases any resources"""
