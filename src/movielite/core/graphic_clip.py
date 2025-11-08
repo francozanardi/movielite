@@ -340,7 +340,6 @@ class GraphicClip(MediaClip):
             new_w = int(frame.shape[1] * s)
             new_h = int(frame.shape[0] * s)
             frame = cv2.resize(frame, (new_w, new_h), interpolation=interpolation_method)
-            frame = frame.astype(np.uint8)
 
         return frame
     
