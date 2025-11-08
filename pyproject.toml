@@ -12,7 +12,7 @@ description = "A performance-oriented Python video editing library focused on sp
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT License"}
-keywords = ["video", "video editing", "moviepy", "video processing", "performance"]
+keywords = ["video", "video editing", "moviepy", "video processing", "performance", "ffmpeg"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -22,10 +22,12 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Operating System :: OS Independent",
-    "Topic :: Multimedia :: Video",
-    "Topic :: Multimedia :: Video :: Conversion",
+    "Topic :: Multimedia",
     "Topic :: Multimedia :: Sound/Audio",
-    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Multimedia :: Sound/Audio :: Analysis",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Multimedia :: Video :: Capture",
+    "Topic :: Multimedia :: Video :: Conversion",
 ]
 
 dependencies = [
