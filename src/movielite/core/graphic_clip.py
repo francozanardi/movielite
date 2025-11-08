@@ -342,7 +342,7 @@ class GraphicClip(MediaClip):
         H, W = target_height, target_width
         h, w = frame.shape[:2]
 
-        has_target_size = h == H or w == W
+        has_target_size = h == H and w == W
         has_custom_position = x != 0 or y != 0
         need_blending = alpha_multiplier != 1.0 or mask is not None or frame.shape[2] == 4
 
