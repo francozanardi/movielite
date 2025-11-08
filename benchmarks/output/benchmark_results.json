@@ -1,0 +1,93 @@
+{
+  "no_processing": {
+    "movielite": {
+      "success": true,
+      "time": 6.9163291454315186,
+      "error": null
+    },
+    "moviepy": {
+      "success": true,
+      "time": 6.922740697860718,
+      "error": null
+    },
+    "speedup": 1.000927016672339
+  },
+  "video_zoom": {
+    "movielite": {
+      "success": true,
+      "time": 9.90886902809143,
+      "error": null
+    },
+    "moviepy": {
+      "success": true,
+      "time": 31.435544729232788,
+      "error": null
+    },
+    "speedup": 3.1724654589856516
+  },
+  "fade": {
+    "movielite": {
+      "success": true,
+      "time": 7.627454519271851,
+      "error": null
+    },
+    "moviepy": {
+      "success": true,
+      "time": 8.436288118362427,
+      "error": null
+    },
+    "speedup": 1.1060424020945576
+  },
+  "text_overlay": {
+    "movielite": {
+      "success": true,
+      "time": 8.982022762298584,
+      "error": null
+    },
+    "moviepy": {
+      "success": true,
+      "time": 33.70478296279907,
+      "error": null
+    },
+    "speedup": 3.752471336887784
+  },
+  "video_overlay": {
+    "movielite": {
+      "success": true,
+      "time": 18.936049461364746,
+      "error": null
+    },
+    "moviepy": {
+      "success": true,
+      "time": 72.43943428993225,
+      "error": null
+    },
+    "speedup": 3.8254776656414293
+  },
+  "alpha_overlay": {
+    "movielite": {
+      "success": true,
+      "time": 12.0121328830719,
+      "error": null
+    },
+    "moviepy": {
+      "success": true,
+      "time": 40.306230545043945,
+      "error": null
+    },
+    "speedup": 3.3554599285065776
+  },
+  "complex_mix": {
+    "movielite": {
+      "success": true,
+      "time": 39.66070032119751,
+      "error": null
+    },
+    "moviepy": {
+      "success": true,
+      "time": 166.8799340724945,
+      "error": null
+    },
+    "speedup": 4.207690048864365
+  }
+}

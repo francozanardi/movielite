@@ -1,7 +1,8 @@
 __pycache__
 *.mp4
+*.mov
 .venv
 .vscode
 *.png
 *.egg-info
-examples
+.dev

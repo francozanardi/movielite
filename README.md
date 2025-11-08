@@ -1,22 +1,53 @@
-# movielite
+# MovieLite
 
 A performance-oriented Python video editing library focused on speed and simplicity.
 
 ## Overview
 
-`movielite` is a lightweight alternative to moviepy, designed for faster video processing with a clean, chainable API. It provides essential video editing capabilities with emphasis on performance.
+`MovieLite` is a lightweight alternative to moviepy, designed for faster video processing with a clean, chainable API. It operates frame-by-frame, providing complete control over video and audio processing, while leveraging optimizations like Numba JIT compilation for critical rendering paths.
 
-## Features
+## Key Features
 
-- 🎬 **Video Clips**: Load and manipulate video files
-- 🖼️ **Image Clips**: Use images as video clips
-- 📝 **Text Clips**: Render styled text using [pictex](https://github.com/yourusername/pictex)
-- 🎵 **Audio Support**: Overlay multiple audio tracks
-- 🔗 **Concatenation**: Join multiple clips seamlessly
-- ✂️ **Subclipping**: Extract segments from clips
-- 🎨 **Effects**: Built-in fade in/out, opacity, scale, position
-- 🔧 **Custom Transformations**: Apply custom frame transformations
-- 🚀 **Multiprocessing**: Render videos using multiple CPU cores
+- **Frame-by-frame processing**: Full control over every frame and audio sample
+- **Performance optimized**: Uses Numba JIT compilation for critical rendering operations
+- **Clean API**: Chainable methods for intuitive video editing workflows
+- **Comprehensive effects library**: Built-in visual effects (vfx), audio effects (afx), and transitions (vtx)
+- **Multiprocessing support**: Parallel rendering for faster video generation
+- **Audio mixing**: Mix multiple audio tracks with per-sample control
+- **Memory efficient**: Streaming architecture for large video files
+
+## What It Supports
+
+### Video Capabilities
+- Video clips with frame-level access
+- Alpha video clips (transparency support via AlphaVideoClip)
+- Image clips (static images as video frames)
+- Text rendering (via pictex library)
+- Mask support for advanced compositing effects
+- Video effects: fade, blur, color adjustments, vignette, zoom, glitch effects
+- Video transitions: crossfade, dissolve, blur dissolve
+- Position, scale, opacity, and size transformations
+- Custom frame transformations
+- Video looping
+
+### Audio Capabilities
+- Audio clips with sample-level access
+- Audio effects: fade in/out
+- Volume control and volume curves
+- Multiple audio track mixing
+- Audio from video files
+- Custom audio transformations
+
+### Output Formats
+- **Video codec**: libx264 (H.264)
+- **Container format**: MP4
+- **Audio codec**: AAC
+- **Quality presets**: LOW, MIDDLE, HIGH, VERY_HIGH
+
+## Limitations
+
+- Output is limited to MP4 format with libx264 codec
+- No GPU acceleration (CPU-based rendering only)
 
 ## Installation
 
@@ -24,9 +55,33 @@ A performance-oriented Python video editing library focused on speed and simplic
 pip install movielite
 ```
 
-For text rendering support:
+## Requirements
+
+- Python 3.10+
+- FFmpeg (must be installed and available in PATH)
+- NumPy
+- OpenCV (opencv-python)
+- Numba (for JIT compilation)
+- multiprocess
+- tqdm
+- pictex (for TextClip)
+
+### Installing FFmpeg
+
+**Windows:**
+1. Download FFmpeg from [ffmpeg.org](https://ffmpeg.org/download.html)
+2. Extract to a permanent location (e.g., `C:\ffmpeg`)
+3. Add the `bin` directory to your PATH environment variable
+
+**macOS:**
 ```bash
-pip install pictex
+brew install ffmpeg
+```
+
+**Linux:**
+```bash
+sudo apt-get install ffmpeg  # Debian/Ubuntu
+sudo yum install ffmpeg      # CentOS/RHEL
 ```
 
 ## Quick Start
@@ -36,17 +91,42 @@ pip install pictex
 ```python
 from movielite import VideoClip, VideoWriter
 
-# Load a video clip and extract a segment
+# Load and extract a segment
 clip = VideoClip("input.mp4")
-subclip = clip.subclip(10, 15)
+subclip = clip.subclip(10, 15)  # Extract seconds 10-15
 
-# Create a writer and render
-writer = VideoWriter("output.mp4", fps=30, size=(1920, 1080))
-writer.add_clip(subclip.set_position((100, 100)))
+# Create output
+writer = VideoWriter("output.mp4", fps=30)
+writer.add_clip(
+    subclip
+    .set_position((100, 100))
+    .set_opacity(0.8)
+)
 writer.write()
+
+clip.close()
 ```
 
-### Adding Text Overlays
+### Adding Effects
+
+```python
+from movielite import VideoClip, VideoWriter, vfx
+
+clip = VideoClip("video.mp4")
+
+# Chain multiple effects
+clip.add_effect(vfx.FadeIn(1.0))
+clip.add_effect(vfx.FadeOut(1.5))
+clip.add_effect(vfx.Blur(intensity=3.0))
+
+writer = VideoWriter("output.mp4", fps=clip.fps, size=clip.size)
+writer.add_clip(clip)
+writer.write()
+
+clip.close()
+```
+
+### Text Overlays
 
 ```python
 from movielite import VideoClip, TextClip, VideoWriter
@@ -55,7 +135,7 @@ from pictex import Canvas, LinearGradient, Shadow
 # Create styled text
 canvas = (
     Canvas()
-    .font_family("Poppins-Bold.ttf")
+    .font_family("Arial")
     .font_size(60)
     .color("white")
     .padding(20)
@@ -64,209 +144,288 @@ canvas = (
     .text_shadows(Shadow(offset=(2, 2), blur_radius=3, color="black"))
 )
 
-text = TextClip("Hello World! 🎨", start=2, duration=3, canvas=canvas)
-text.set_position((640, 360))
+video = VideoClip("background.mp4")
+text = TextClip("Hello World", start=2, duration=3, canvas=canvas)
+text.set_position((video.size[0] // 2 - text.size[0] // 2, 100))
 
-# Overlay text on video
-bg_video = VideoClip("video.mp4")
-writer = VideoWriter("output.mp4", fps=bg_video.fps, size=bg_video.size)
-writer.add_clip(bg_video)  # Background video
-writer.add_clip(text)       # Text overlay
+writer = VideoWriter("output.mp4", fps=video.fps, size=video.size)
+writer.add_clip(video)
+writer.add_clip(text)
 writer.write()
+
+video.close()
 ```
 
 ### Concatenating Videos
 
 ```python
-from movielite import VideoClip, concatenate_videoclips
+from movielite import VideoClip, VideoWriter
 
-clip1 = VideoClip("intro.mp4")
-clip2 = VideoClip("main.mp4")
-clip3 = VideoClip("outro.mp4")
+clip1 = VideoClip("intro.mp4", start=0)
+clip2 = VideoClip("main.mp4", start=clip1.end)
+clip3 = VideoClip("outro.mp4", start=clip2.end)
 
-final = concatenate_videoclips([clip1, clip2, clip3])
-# final is a CompositeClip that can be rendered
-```
-
-### Adding Audio
-
-```python
-from movielite import VideoClip, VideoWriter, AudioClip
-
-# Load video
-bg_video = VideoClip("video.mp4")
-
-# Create writer
-writer = VideoWriter("output.mp4", fps=bg_video.fps, size=bg_video.size)
-writer.add_clip(bg_video)
-
-# Add background music
-music = AudioClip("background_music.mp3", start=0, volume=0.5)
-writer.add_audio(music)
-
-# Add sound effect at 5 seconds
-sfx = AudioClip("ding.wav", start=5, volume=1.0)
-writer.add_audio(sfx)
-
+writer = VideoWriter("final.mp4", fps=30)
+writer.add_clips([clip1, clip2, clip3])
 writer.write()
+
+clip1.close()
+clip2.close()
+clip3.close()
 ```
 
-### Using Effects
+### Audio Mixing
 
 ```python
-from movielite import VideoClip
-from movielite.fx import fade_in, fade_out, resize
+from movielite import VideoClip, AudioClip, VideoWriter, afx
 
-clip = VideoClip("video.mp4")
+video = VideoClip("video.mp4")
 
-# Chain effects
-clip = fade_in(clip, duration=1.0)
-clip = fade_out(clip, duration=1.0)
-clip = resize(clip, width=1280)
+# Background music at 50% volume
+music = AudioClip("background.mp3", start=0, volume=0.5)
+music.add_effect(afx.FadeIn(2)).add_effect(afx.FadeOut(2))
 
-# Or use methods
-clip.set_opacity(0.8)
-clip.set_scale(0.5)
+# Sound effect at specific time
+sfx = AudioClip("ding.wav", start=5.0, volume=1.0)
+
+writer = VideoWriter("output.mp4", fps=video.fps)
+writer.add_clip(video)  # Video includes its own audio track
+writer.add_clip(music)
+writer.add_clip(sfx)
+writer.write()
+
+video.close()
+```
+
+### Transitions
+
+```python
+from movielite import VideoClip, VideoWriter, vtx
+
+clip1 = VideoClip("scene1.mp4", start=0, duration=5)
+clip2 = VideoClip("scene2.mp4", start=4, duration=5)  # 1s overlap
+
+# Apply crossfade transition
+clip1.add_transition(clip2, vtx.CrossFade(duration=1))
+
+writer = VideoWriter("output.mp4", fps=30)
+writer.add_clips([clip1, clip2])
+writer.write()
+
+clip1.close()
+clip2.close()
 ```
 
 ### Custom Frame Transformations
 
 ```python
 import cv2
-from movielite import VideoClip
+import numpy as np
+from movielite import VideoClip, VideoWriter
 
 clip = VideoClip("video.mp4")
 
-# Apply custom transformation to each frame
-def make_grayscale(frame, t):
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+# Apply custom sepia effect
+def sepia_transform(frame: np.ndarray, t: float) -> np.ndarray:
+    kernel = np.array([
+        [0.131, 0.534, 0.272],
+        [0.168, 0.686, 0.349],
+        [0.189, 0.769, 0.393]
+    ])
+    sepia = cv2.transform(frame, kernel)
+    return np.clip(sepia, 0, 255).astype(np.uint8)
 
-clip.transform_frame(make_grayscale)
+clip.add_transform(sepia_transform)
+
+writer = VideoWriter("output.mp4", fps=clip.fps)
+writer.add_clip(clip)
+writer.write()
+
+clip.close()
 ```
 
-### Creating Image Clips
+### Masking for Advanced Compositing
 
 ```python
-from movielite import ImageClip
+import numpy as np
+from movielite import VideoClip, TextClip, VideoWriter
+from pictex import Canvas
 
-# From file
-img_clip = ImageClip("photo.jpg", start=0, duration=5)
+# Video to be masked
+video = VideoClip("waves.mp4", start=0, duration=10)
 
-# From solid color
-color_clip = ImageClip.from_color(
-    color=(255, 0, 0),  # Red
-    size=(1920, 1080),
-    duration=3
-)
+# Create text as mask
+canvas = Canvas().font_size(200).color("white").background_color("transparent")
+text = TextClip("Hello World!", start=0, duration=10, canvas=canvas)
+
+# Animate mask position and scale
+text.set_position(lambda t: (
+    960 - text.size[0] // 2,
+    500 + int(20 * np.sin(2 * np.pi * (t / text.duration)))
+))
+text.set_scale(lambda t: 1.0 + 0.4 * (t / text.duration))
+
+# Apply mask - video only visible through text
+video.set_mask(text)
+video.set_size(1920, 1080)
+
+writer = VideoWriter("output.mp4", fps=30, size=(1920, 1080))
+writer.add_clip(video)
+writer.write()
+
+video.close()
 ```
 
-### Working with CompositeClips
+### Multiprocessing for Faster Rendering
 
 ```python
-from movielite import CompositeClip, VideoClip, ImageClip, TextClip
+from movielite import VideoClip, VideoWriter, VideoQuality
 
-# Create multiple clips
-video = VideoClip("background.mp4", start=0, duration=10)
-logo = ImageClip("logo.png", start=0, duration=10).set_position((50, 50))
-title = TextClip("My Video", start=1, duration=3).set_position((640, 100))
+clip = VideoClip("input.mp4")
 
-# Combine them
-composite = CompositeClip(
-    clips=[video, logo, title],
-    size=(1920, 1080)
-)
+writer = VideoWriter("output.mp4", fps=clip.fps, size=clip.size)
+writer.add_clip(clip)
+
+# Use 8 parallel processes for rendering
+writer.write(processes=8, video_quality=VideoQuality.HIGH)
+
+clip.close()
 ```
+
+## Performance Comparison
+
+`movielite` is designed to be faster than moviepy for common video editing tasks. Performance improvements come from:
+
+1. **Numba JIT compilation**: Critical rendering loops are compiled to native code
+2. **Optimized compositing**: Efficient alpha blending and frame composition
+3. **Memory management**: Streaming architecture reduces memory footprint
+4. **Multiprocessing**: Parallel frame rendering for multi-core systems
+
+### Benchmark Results
+
+To run benchmarks comparing movielite with moviepy 2.2.1:
+
+```bash
+python benchmarks/compare_moviepy.py --input /path/to/input
+```
+
+Real benchmark results (1280x720 video, 30fps):
+
+| Task | movielite | moviepy | Speedup |
+|------|-----------|---------|---------|
+| No processing | 6.92s | 6.92s | 1.00x |
+| Video zoom (1.0x → 1.5x) | 9.91s | 31.44s | **3.17x** 🚀 |
+| Fade in/out | 7.63s | 8.44s | 1.11x |
+| Text overlay | 8.98s | 33.70s | **3.75x** 🚀 |
+| Video overlay | 18.94s | 72.44s | **3.83x** 🚀 |
+| Alpha video overlay | 12.01s | 40.31s | **3.36x** 🚀 |
+| Complex mix* | 39.66s | 166.88s | **4.21x** 🚀 |
+| **Overall** | **104.04s** | **360.12s** | **3.46x** 🚀 |
+
+*Complex mix includes: video with zoom + fade, image clips with fade, text overlay, video overlay - all composed together.
+
+**movielite excels at:**
+- Transform operations (zoom, scale, resize) - **up to 3.17x faster**
+- Text overlays and compositing - **up to 3.75x faster**
+- Video overlays and layering - **up to 3.83x faster**
+- Alpha channel compositing - **up to 3.36x faster**
+- Complex multi-effect compositions - **up to 4.21x faster**
+
+*Results may vary based on hardware, video codec, and complexity.*
+
+## Architecture
+
+### Frame-by-Frame Processing
+
+Like moviepy, movielite operates on a frame-by-frame basis:
+
+```python
+# Every frame is individually processed
+for frame_idx in range(total_frames):
+    t = frame_idx / fps
+    frame = clip.get_frame(t)  # Get raw frame
+    frame = apply_transforms(frame, t)  # Apply effects
+    frame = blend_with_other_clips(frame, t)  # Composite
+    write_frame_to_output(frame)
+```
+
+This approach provides:
+- Complete control over every pixel
+- Ability to apply time-based effects
+- Support for complex compositing operations
+- Memory efficiency through streaming
+
+### Numba Optimization
+
+Critical operations are JIT-compiled with Numba:
+
+```python
+@numba.jit(nopython=True, cache=True)
+def blend_foreground_with_bgr_background_inplace(
+    background, foreground, x, y, opacity, mask, ...
+):
+    # Pixel-perfect alpha blending at native speed
+    ...
+```
+
+This provides near-native performance for:
+- Alpha blending operations
+- Pixel-wise transformations
+- Color space conversions
 
 ## API Reference
 
+For detailed API documentation, see [docs/api.md](docs/api.md).
+
 ### Core Classes
 
-#### `VideoClip`
-Load and manipulate video files.
-- `VideoClip(path, start=0, duration=None, offset=0)`
-- Methods: `subclip(start, end)`, `set_position()`, `set_opacity()`, `set_scale()`, `set_size()`, `transform_frame()`
+- [VideoClip](docs/api.md#videoclip) - Load and manipulate video files
+- [AlphaVideoClip](docs/api.md#alphavideoclip) - Video with alpha channel support
+- [ImageClip](docs/api.md#imageclip) - Static images as video frames
+- [TextClip](docs/api.md#textclip) - Rendered text overlays
+- [AudioClip](docs/api.md#audioclip) - Audio track handling
+- [VideoWriter](docs/api.md#videowriter) - Render composition to file
 
-#### `ImageClip`
-Display static images as video clips.
-- `ImageClip(source, start=0, duration=5.0)`
-- `ImageClip.from_color(color, size, start=0, duration=5.0)`
+### Effect Modules
 
-#### `TextClip`
-Render styled text using pictex.
-- `TextClip(text, start=0, duration=5.0, canvas=None)`
+- [vfx](docs/api.md#vfx) - Visual effects (fade, blur, color, zoom, glitch)
+- [afx](docs/api.md#afx) - Audio effects (fade in/out)
+- [vtx](docs/api.md#vtx) - Video transitions (crossfade, dissolve)
 
-#### `AudioClip`
-Handle audio tracks.
-- `AudioClip(path, start=0, duration=None, volume=1.0, offset=0)`
-- Methods: `subclip(start, end)`, `set_volume(volume)`
+## Advanced Usage
 
-#### `CompositeClip`
-Combine multiple clips.
-- `CompositeClip(clips, start=0, duration=None, size=(1920, 1080))`
-- Methods: `add_clip(clip)`
+For advanced topics, see [docs/advanced.md](docs/advanced.md):
 
-#### `VideoWriter`
-Write clips to a video file.
-- `VideoWriter(output_path, fps=30, size=(1920, 1080), duration=None)`
-- Methods: `add_clip(clip)`, `add_audio(audio)`, `write()`
+- Custom effect development
+- Performance optimization techniques
+- Memory management strategies
+- Advanced audio processing
+- Masking and compositing techniques
+- Integration with other libraries
 
-### Utility Functions
+## Examples
 
-#### `concatenate_videoclips(clips)`
-Join video clips sequentially.
+Additional examples are available in the [examples/](examples/) directory:
 
-#### `concatenate_audioclips(clips)`
-Join audio clips sequentially.
-
-### Effects (movielite.fx)
-
-#### Video Effects
-- `fade_in(clip, duration=1.0)`
-- `fade_out(clip, duration=1.0)`
-- `resize(clip, width=None, height=None)`
-
-#### Audio Effects
-- `volumex(clip, factor)`
-
-## Performance Tips
-
-1. **Use multiprocessing**: Enable `use_multiprocessing=True` in `render()` for faster rendering
-2. **Set appropriate quality**: Use `VideoQuality.LOW` for faster encoding during development
-3. **Optimize clip duration**: Only load the portion of video you need using `offset` and `duration`
-4. **Resize early**: If you need smaller output, resize clips before rendering
-
-```python
-from movielite import VideoWriter, VideoQuality
-
-writer = VideoWriter("output.mp4", fps=30, size=(1920, 1080))
-# ... add clips ...
-writer.write(
-    use_multiprocessing=True,
-    processes=8,
-    video_quality=VideoQuality.HIGH
-)
-```
-
-## Requirements
-
-- Python 3.10+
-- OpenCV (opencv-python)
-- NumPy
-- FFmpeg (must be installed and in PATH)
-- pydub
-- multiprocess
-- tqdm
-- pictex (optional, for TextClip)
+- [basic_editing.py](examples/basic_editing.py) - Simple cuts and concatenation
+- [effects_showcase.py](examples/effects_showcase.py) - All built-in effects
+- [text_animations.py](examples/text_animations.py) - Animated text overlays
+- [audio_mixing.py](examples/audio_mixing.py) - Complex audio compositions
+- [transitions.py](examples/transitions.py) - Transition examples
+- [masking_effects.py](examples/masking_effects.py) - Advanced masking techniques
 
 ## License
 
-MIT License
+MIT License - see [LICENSE](LICENSE) for details.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Acknowledgments
 
-This library was extracted and refactored from the [pycaps](https://github.com/yourusername/pycaps) project, focusing on the video rendering capabilities as a standalone library.
+This library was extracted and refactored from the [pycaps](https://github.com/francozanardi/pycaps) project.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history and changes.
