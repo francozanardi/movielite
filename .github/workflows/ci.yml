@@ -24,7 +24,10 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y ffmpeg libgl1-mesa-glx libglib2.0-0
+        sudo apt-get install -y \
+            ffmpeg \
+            libfontconfig1 \
+            libegl1-mesa
 
     - name: Install dependencies
       run: |
