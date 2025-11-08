@@ -13,6 +13,7 @@ from ..audio import AudioClip
 from ..enums import VideoQuality
 from ..logger import get_logger
 from ..video import VideoClip
+from . import empty_frame
 
 class VideoWriter:
     """
@@ -205,13 +206,15 @@ class VideoWriter:
                 if background_clip:
                     frame = background_clip.render_as_background(current_time, self._size[0], self._size[1], len(remaining_clips) > 0)
                 else:
-                    frame = np.zeros((self._size[1], self._size[0], 3), dtype=np.uint8)
+                    frame = empty_frame.get(np.uint8, self._size[0], self._size[1], 3).frame
 
                 for clip in remaining_clips:
                     frame = clip.render(frame, current_time)
 
                 try:
-                    process.stdin.write(frame.astype(np.uint8).tobytes())
+                    frame = frame.astype(np.uint8) # if frame.dtype != np.uint8 else frame # this is weird, but this makes slower the rendering
+                    process.stdin.write(frame.tobytes())
+                    empty_frame.clean_all()
                 except BrokenPipeError:
                     get_logger().error("FFmpeg process died early.")
                     break

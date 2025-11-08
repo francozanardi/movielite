@@ -5,6 +5,7 @@ from abc import abstractmethod
 from typing import Callable, Union, Tuple, Optional, TYPE_CHECKING
 import inspect
 from .media_clip import MediaClip
+from . import empty_frame
 
 try:
     from typing import Self # type: ignore[attr-defined]
@@ -297,7 +298,7 @@ class GraphicClip(MediaClip):
             new_w = int(frame.shape[1] * s)
             new_h = int(frame.shape[0] * s)
             frame = cv2.resize(frame, (new_w, new_h), interpolation=interpolation_method)
-            frame = np.clip(frame, 0.0, 255.0)
+            frame = frame.astype(np.uint8)
 
         return frame
     
@@ -341,11 +342,20 @@ class GraphicClip(MediaClip):
         H, W = target_height, target_width
         h, w = frame.shape[:2]
 
-        if (h == H and w == W and alpha_multiplier == 1.0 and mask is None and frame.shape[2] == 3 and x == 0 and y == 0):
+        has_target_size = h == H or w == W
+        has_custom_position = x != 0 or y != 0
+        need_blending = alpha_multiplier != 1.0 or mask is not None or frame.shape[2] == 4
+
+        if (has_target_size and not has_custom_position and not need_blending):
             # To keep in mind: if we get rid of float32 frames and use always uint8 frames,
             #  we will need to return a copy of the frame here if 'will_need_blending' is True
             #  It would be specially a problem with image clip as background
             return frame.astype(np.float32) if will_need_blending else frame
+        
+        if (not need_blending):
+            # it has custom position or different size, but doesn't need blending
+            # this seems to be a bit faster that iterate the whole frame using numba in blending loop
+            return crop_and_pad(frame, (H, W), (x, y), will_need_blending)
 
         y1_bg = max(y, 0)
         x1_bg = max(x, 0)
@@ -353,7 +363,7 @@ class GraphicClip(MediaClip):
         x2_bg = min(x + w, W)
 
         if y1_bg >= y2_bg or x1_bg >= x2_bg:
-            return np.zeros((H, W, 3), dtype=np.float32 if will_need_blending else np.uint8)
+            return empty_frame.get(np.float32 if will_need_blending else np.uint8, W, H, 3).frame
 
         # Frame coordinates
         y1_fr = y1_bg - y
@@ -361,10 +371,12 @@ class GraphicClip(MediaClip):
         y2_fr = y2_bg - y
         x2_fr = x2_bg - x
 
-        roi = np.zeros((H, W, 3), dtype=np.float32 if will_need_blending else np.uint8)
+        ef = empty_frame.get(np.float32 if will_need_blending else np.uint8, W, H, 3)
+        roi = ef.frame
         sub_fr = frame[y1_fr:y2_fr, x1_fr:x2_fr]
 
         blend_foreground_with_bgr_background_inplace(roi, sub_fr, x, y, alpha_multiplier, mask, mask_x, mask_y, mask_opacity_multiplier)
+        ef.mark_as_dirty()
         
         return roi
 
@@ -434,6 +446,36 @@ class GraphicClip(MediaClip):
             blend_foreground_with_bgra_background_inplace(roi, sub_fr, x, y, alpha_multiplier, mask, mask_x, mask_y, mask_opacity_multiplier)
 
         return bg
+
+def crop_and_pad(frame: np.ndarray, target_size: tuple[int, int], position: tuple[int, int], will_need_blending: bool) -> np.ndarray:
+    target_h, target_w = target_size
+    frame_h, frame_w, frame_c = frame.shape
+    pos_x, pos_y = position
+
+    if frame_h >= target_h and frame_w >= target_w and pos_x == 0 and pos_y == 0:
+        final_frame = frame[:target_h, :target_w]
+        return final_frame.astype(np.float32) if will_need_blending else final_frame
+
+    ef = empty_frame.get(np.float32 if will_need_blending else np.uint8, target_w, target_h, frame_c)
+    canvas = ef.frame
+
+    src_y_start = max(0, -pos_y)
+    src_x_start = max(0, -pos_x)
+
+    src_y_end = min(frame_h, target_h - pos_y)
+    src_x_end = min(frame_w, target_w - pos_x)
+
+    dest_y_start = max(0, pos_y)
+    dest_x_start = max(0, pos_x)
+    
+    dest_y_end = min(target_h, pos_y + frame_h)
+    dest_x_end = min(target_w, pos_x + frame_w)
+
+    if src_y_end > src_y_start and src_x_end > src_x_start:
+        canvas[dest_y_start:dest_y_end, dest_x_start:dest_x_end] = frame[src_y_start:src_y_end, src_x_start:src_x_end]
+        ef.mark_as_dirty()
+
+    return canvas
 
 @numba.jit(nopython=True, cache=True)
 def blend_foreground_with_bgr_background_inplace(
