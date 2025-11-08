@@ -181,6 +181,7 @@ class Sepia(GraphicEffect):
                     0
                 )
 
+            # TODO: we could add a numba function to do both things at same time in-place
             return np.clip(sepia_frame, 0, 255).astype(np.uint8)
 
         clip.add_transform(sepia_transform)
