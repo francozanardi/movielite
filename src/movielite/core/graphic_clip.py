@@ -311,6 +311,73 @@ class GraphicClip(MediaClip):
             frame = np.clip(frame, 0.0, 255.0)
 
         return frame
+    
+    def render_as_background(self, t_global: float, target_width: int, target_height: int, will_need_blending: bool) -> np.ndarray:
+        """
+        Render this clip as a background at a given global time.
+
+        Args:
+            t_global: Global time in seconds
+
+        Returns:
+            This clip rendered for being a background
+        """
+        t_rel = (t_global - self._start)
+
+        if not (0 <= t_rel < self._duration):
+            raise RuntimeError("A background clip must be active")
+
+        frame = self.get_frame(t_rel)
+        frame = self._apply_transforms(frame, t_rel)
+
+        mask = None
+        mask_x, mask_y = 0, 0
+        mask_opacity_multiplier = 1.0
+        if self._mask is not None:
+            # There's a small possible improvement here:
+            #  When the mask clip is an image, we're doing the convertion from BGR/BGRA to mask every frame render.
+            #  We could do the conversion once and cache it.
+            # However, this would require do the transformations over the mask, which may result in a specific and more complex logic.
+            mask = self._mask.get_frame(t_rel)
+            mask = self._mask._apply_transforms(mask, t_rel)
+            mask = self._convert_to_mask(mask)
+            mask_x, mask_y = self._mask.position(t_rel)
+            mask_x, mask_y = int(mask_x), int(mask_y)
+            mask_opacity_multiplier = self._mask.opacity(t_rel)
+
+        x, y = self.position(t_rel)
+        x, y = int(x), int(y)
+        alpha_multiplier = self.opacity(t_rel)
+
+        H, W = target_height, target_width
+        h, w = frame.shape[:2]
+
+        if (h == H and w == W and alpha_multiplier == 1.0 and mask is None and frame.shape[2] == 3 and x == 0 and y == 0):
+            # To keep in mind: if we get rid of float32 frames and use always uint8 frames,
+            #  we will need to return a copy of the frame here if 'will_need_blending' is True
+            #  It would be specially a problem with image clip as background
+            return frame.astype(np.float32) if will_need_blending else frame
+
+        y1_bg = max(y, 0)
+        x1_bg = max(x, 0)
+        y2_bg = min(y + h, H)
+        x2_bg = min(x + w, W)
+
+        if y1_bg >= y2_bg or x1_bg >= x2_bg:
+            return np.zeros((H, W, 3), dtype=np.float32 if will_need_blending else np.uint8)
+
+        # Frame coordinates
+        y1_fr = y1_bg - y
+        x1_fr = x1_bg - x
+        y2_fr = y2_bg - y
+        x2_fr = x2_bg - x
+
+        roi = np.zeros((H, W, 3), dtype=np.float32 if will_need_blending else np.uint8)
+        sub_fr = frame[y1_fr:y2_fr, x1_fr:x2_fr]
+
+        blend_foreground_with_bgr_background_inplace(roi, sub_fr, x, y, alpha_multiplier, mask, mask_x, mask_y, mask_opacity_multiplier)
+        
+        return roi
 
     def render(self, bg: np.ndarray, t_global: float) -> np.ndarray:
         """
