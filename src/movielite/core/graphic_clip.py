@@ -379,13 +379,14 @@ class GraphicClip(MediaClip):
         x2_fr = x2_bg - x
 
         ef = empty_frame.get(np.float32 if will_need_blending else np.uint8, W, H, 3)
-        roi = ef.frame
+        bg = ef.frame
+        roi = bg[y1_bg:y2_bg, x1_bg:x2_bg]
         sub_fr = frame[y1_fr:y2_fr, x1_fr:x2_fr]
 
         blend_foreground_with_bgr_background_inplace(roi, sub_fr, x, y, alpha_multiplier, mask, mask_x, mask_y, mask_opacity_multiplier)
         ef.mark_as_dirty()
         
-        return roi
+        return bg
 
     def render(self, bg: np.ndarray, t_global: float) -> np.ndarray:
         """
