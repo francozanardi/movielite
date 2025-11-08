@@ -1,27 +1,43 @@
 from ..core import GraphicClip
 from .base import GraphicEffect
+from typing import Union, Tuple
 
 class ZoomIn(GraphicEffect):
     """
     Zoom-in effect that gradually scales up the clip from a smaller size.
     """
 
-    def __init__(self, duration: float, from_scale: float = 0.5, to_scale: float = 1.0):
+    def __init__(
+        self,
+        duration: float,
+        from_scale: float = 1.0,
+        to_scale: float = 1.2,
+        anchor: str = "center"
+    ):
         """
         Create a zoom-in effect.
 
         Args:
             duration: Duration of the zoom effect in seconds
-            from_scale: Starting scale (0.5 = 50% size)
-            to_scale: Ending scale (1.0 = 100% size)
+            from_scale: Starting scale (1.0 = 100% size)
+            to_scale: Ending scale (1.2 = 120% size)
+            anchor: Zoom anchor point. Options:
+                   'center' (default), 'top-left', 'top-right',
+                   'bottom-left', 'bottom-right', 'top', 'bottom', 'left', 'right'
+                   or tuple (x, y) for custom anchor in clip coordinates
         """
         self.duration = duration
         self.from_scale = max(0.1, from_scale)
         self.to_scale = to_scale
+        self.anchor = anchor
 
     def apply(self, clip: GraphicClip) -> None:
-        """Apply zoom-in effect by modifying the clip's scale function"""
+        """Apply zoom-in effect by modifying the clip's scale and position"""
         original_scale = clip._scale
+        original_position = clip._position
+
+        # Get clip size (after any resize transformations)
+        clip_width, clip_height = clip.size
 
         def scale_with_zoom_in(t):
             if t >= self.duration:
@@ -32,7 +48,26 @@ class ZoomIn(GraphicEffect):
             current_scale = self.from_scale + (self.to_scale - self.from_scale) * progress
             return original_scale(t) * current_scale
 
+        def position_with_zoom_in(t):
+            base_pos = original_position(t)
+
+            if t >= self.duration:
+                current_scale = self.to_scale
+            else:
+                progress = t / self.duration
+                current_scale = self.from_scale + (self.to_scale - self.from_scale) * progress
+
+            # Calculate anchor point in clip coordinates
+            anchor_x, anchor_y = _calculate_anchor_point(self.anchor, clip_width, clip_height)
+
+            # Adjust position to keep anchor point fixed
+            offset_x = anchor_x * (1 - current_scale)
+            offset_y = anchor_y * (1 - current_scale)
+
+            return (int(base_pos[0] + offset_x), int(base_pos[1] + offset_y))
+
         clip.set_scale(scale_with_zoom_in)
+        clip.set_position(position_with_zoom_in)
 
 
 class ZoomOut(GraphicEffect):
@@ -40,23 +75,38 @@ class ZoomOut(GraphicEffect):
     Zoom-out effect that gradually scales down the clip.
     """
 
-    def __init__(self, duration: float, from_scale: float = 1.0, to_scale: float = 0.5):
+    def __init__(
+        self,
+        duration: float,
+        from_scale: float = 1.2,
+        to_scale: float = 1.0,
+        anchor: str = "center"
+    ):
         """
         Create a zoom-out effect.
 
         Args:
             duration: Duration of the zoom effect in seconds
-            from_scale: Starting scale (1.0 = 100% size)
-            to_scale: Ending scale (0.5 = 50% size)
+            from_scale: Starting scale (1.2 = 120% size)
+            to_scale: Ending scale (1.0 = 100% size)
+            anchor: Zoom anchor point. Options:
+                   'center' (default), 'top-left', 'top-right',
+                   'bottom-left', 'bottom-right', 'top', 'bottom', 'left', 'right'
+                   or tuple (x, y) for custom anchor in clip coordinates
         """
         self.duration = duration
         self.from_scale = from_scale
         self.to_scale = max(0.1, to_scale)
+        self.anchor = anchor
 
     def apply(self, clip: GraphicClip) -> None:
-        """Apply zoom-out effect by modifying the clip's scale function"""
+        """Apply zoom-out effect by modifying the clip's scale and position"""
         original_scale = clip._scale
+        original_position = clip._position
         clip_duration = clip._duration
+
+        # Get clip size (after any resize transformations)
+        clip_width, clip_height = clip.size
 
         def scale_with_zoom_out(t):
             # Apply zoom out at the end of the clip
@@ -69,7 +119,28 @@ class ZoomOut(GraphicEffect):
             current_scale = self.from_scale + (self.to_scale - self.from_scale) * progress
             return original_scale(t) * current_scale
 
+        def position_with_zoom_out(t):
+            base_pos = original_position(t)
+
+            # Apply zoom out at the end of the clip
+            if t < clip_duration - self.duration:
+                current_scale = self.from_scale
+            else:
+                time_in_effect = t - (clip_duration - self.duration)
+                progress = time_in_effect / self.duration
+                current_scale = self.from_scale + (self.to_scale - self.from_scale) * progress
+
+            # Calculate anchor point in clip coordinates
+            anchor_x, anchor_y = _calculate_anchor_point(self.anchor, clip_width, clip_height)
+
+            # Adjust position to keep anchor point fixed
+            offset_x = anchor_x * (1 - current_scale)
+            offset_y = anchor_y * (1 - current_scale)
+
+            return (int(base_pos[0] + offset_x), int(base_pos[1] + offset_y))
+
         clip.set_scale(scale_with_zoom_out)
+        clip.set_position(position_with_zoom_out)
 
 
 class KenBurns(GraphicEffect):
@@ -146,3 +217,25 @@ class KenBurns(GraphicEffect):
 
         clip.set_scale(scale_with_ken_burns)
         clip.set_position(position_with_ken_burns)
+
+def _calculate_anchor_point(
+    anchor: Union[str, Tuple[int, int]],
+    clip_width: int,
+    clip_height: int
+) -> Tuple[float, float]:
+    if isinstance(anchor, tuple):
+        return anchor
+
+    anchor_map = {
+        "center": (clip_width / 2, clip_height / 2),
+        "top-left": (0, 0),
+        "top-right": (clip_width, 0),
+        "bottom-left": (0, clip_height),
+        "bottom-right": (clip_width, clip_height),
+        "top": (clip_width / 2, 0),
+        "bottom": (clip_width / 2, clip_height),
+        "left": (0, clip_height / 2),
+        "right": (clip_width, clip_height / 2)
+    }
+
+    return anchor_map.get(anchor, (clip_width / 2, clip_height / 2))
