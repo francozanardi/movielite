@@ -37,6 +37,7 @@ class GraphicClip(MediaClip):
         self._position: Callable[[float], Tuple[int, int]] = lambda t: (0, 0)
         self._opacity: Callable[[float], float] = lambda t: 1
         self._scale: Callable[[float], float] = lambda t: 1
+        self._pixel_transforms: list[Callable] = []  # numba-compiled pixel transforms
         self._frame_transforms: list[Callable[[np.ndarray, float], np.ndarray]] = []
         self._mask: Optional['GraphicClip'] = None
 
@@ -130,6 +131,44 @@ class GraphicClip(MediaClip):
             >>> image.set_mask(mask)
         """
         self._mask = mask
+        return self
+
+    def add_pixel_transform(self, callback: Callable) -> Self:
+        """
+        Apply a per-pixel transformation at render time.
+        Multiple pixel transformations can be chained and will be applied efficiently
+        in a single pass using numba.
+
+        The callback should be a numba-compiled function with signature:
+            @numba.njit
+            def transform(b: int, g: int, r: int, a: int, t: float) -> Tuple[int, int, int]
+
+        All color values are uint8 (0-255), time is float.
+
+        This is more efficient than add_transform for color adjustments because:
+        - Multiple pixel transforms are batched into a single loop
+        - Only one copy of the frame is made
+        - All operations happen in-place with numba
+
+        Args:
+            callback: Numba-compiled function(b, g, r, a, t) -> (b, g, r)
+
+        Returns:
+            Self for chaining
+
+        Example:
+            >>> import numba
+            >>> @numba.njit
+            >>> def increase_brightness(b, g, r, a, t):
+            >>>     factor = 1.2
+            >>>     return (
+            >>>         min(255, int(b * factor)),
+            >>>         min(255, int(g * factor)),
+            >>>         min(255, int(r * factor))
+            >>>     )
+            >>> clip.add_pixel_transform(increase_brightness)
+        """
+        self._pixel_transforms.append(callback)
         return self
 
     def add_transform(self, callback: Callable[[np.ndarray, float], np.ndarray]) -> Self:
@@ -283,6 +322,9 @@ class GraphicClip(MediaClip):
         """
         if self._target_size is not None:
             frame = self._apply_resize(frame)
+
+        if self._pixel_transforms:
+            frame = apply_batched_pixel_transforms(frame, self._pixel_transforms, t_rel)
 
         for transform in self._frame_transforms:
             frame = transform(frame, t_rel)
@@ -454,6 +496,58 @@ class GraphicClip(MediaClip):
             blend_foreground_with_bgra_background_inplace(roi, sub_fr, x, y, alpha_multiplier, mask, mask_x, mask_y, mask_opacity_multiplier)
 
         return bg
+
+def apply_batched_pixel_transforms(frame: np.ndarray, transforms: list, t_rel: float) -> np.ndarray:
+    """
+    Apply multiple pixel transformations efficiently in a single pass.
+
+    Args:
+        frame: Input frame (BGR/BGRA uint8)
+        transforms: List of numba-compiled transform functions
+        t_rel: Relative time
+
+    Returns:
+        Transformed frame (BGR/BGRA uint8)
+    """
+    # Make a copy for in-place modification
+    result = frame.copy()
+
+    # Apply all transforms in a single numba loop
+    _apply_pixel_transforms_inplace(result, transforms, t_rel)
+
+    return result
+
+@numba.jit(nopython=True, cache=True)
+def _apply_pixel_transforms_inplace(frame, transforms, t_rel):
+    """
+    Apply pixel transforms in-place.
+    Works with both BGR and BGRA frames.
+
+    Note: Uses numba.jit (not njit) to allow calling numba-compiled callbacks.
+
+    Args:
+        frame: Frame to modify (BGR/BGRA uint8)
+        transforms: List of numba-compiled transform functions
+        t_rel: Relative time
+    """
+    height, width, channels = frame.shape
+    has_alpha = channels == 4
+
+    for y in range(height):
+        for x in range(width):
+            b = int(frame[y, x, 0])
+            g = int(frame[y, x, 1])
+            r = int(frame[y, x, 2])
+            a = int(frame[y, x, 3]) if has_alpha else 255
+
+            # Apply all transforms sequentially
+            for transform in transforms:
+                b, g, r = transform(b, g, r, a, t_rel)
+
+            # Clamp and assign
+            frame[y, x, 0] = min(255, max(0, b))
+            frame[y, x, 1] = min(255, max(0, g))
+            frame[y, x, 2] = min(255, max(0, r))
 
 def crop_and_pad(frame: np.ndarray, target_size: tuple[int, int], position: tuple[int, int], will_need_blending: bool) -> np.ndarray:
     target_h, target_w = target_size

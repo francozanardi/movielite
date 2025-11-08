@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import numba
 from ..core import GraphicClip
 from .base import GraphicEffect
 
@@ -59,17 +60,22 @@ class Brightness(GraphicEffect):
         self.factor = max(0.0, factor)
 
     def apply(self, clip: GraphicClip) -> None:
-        """Apply brightness adjustment by adding a frame transform"""
+        """Apply brightness adjustment using optimized pixel transform"""
+        if self.factor == 1.0:
+            return
 
-        def brightness_transform(frame: np.ndarray, t: float) -> np.ndarray:
-            if self.factor == 1.0:
-                return frame
+        # Create numba-compiled transform function
+        factor = self.factor
 
-            # Convert to float, apply brightness, clip, convert back
-            adjusted = frame.astype(np.float32) * self.factor
-            return np.clip(adjusted, 0, 255).astype(np.uint8)
+        @numba.njit
+        def brightness_transform(b, g, r, a, t):
+            return (
+                min(255, max(0, int(b * factor))),
+                min(255, max(0, int(g * factor))),
+                min(255, max(0, int(r * factor)))
+            )
 
-        clip.add_transform(brightness_transform)
+        clip.add_pixel_transform(brightness_transform)
 
 
 class Contrast(GraphicEffect):
@@ -90,22 +96,22 @@ class Contrast(GraphicEffect):
         self.factor = factor
 
     def apply(self, clip: GraphicClip) -> None:
-        """Apply contrast adjustment by adding a frame transform"""
+        """Apply contrast adjustment using optimized pixel transform"""
+        if self.factor == 1.0:
+            return
 
-        def contrast_transform(frame: np.ndarray, t: float) -> np.ndarray:
-            if self.factor == 1.0:
-                return frame
+        # Create numba-compiled transform function
+        factor = self.factor
 
-            # Convert to float
-            frame_float = frame.astype(np.float32)
+        @numba.njit
+        def contrast_transform(b, g, r, a, t):
+            return (
+                min(255, max(0, int((b - 128) * factor + 128))),
+                min(255, max(0, int((g - 128) * factor + 128))),
+                min(255, max(0, int((r - 128) * factor + 128)))
+            )
 
-            # Apply contrast formula: output = (input - 128) * factor + 128
-            adjusted = (frame_float - 128) * self.factor + 128
-
-            # Clip and convert back
-            return np.clip(adjusted, 0, 255).astype(np.uint8)
-
-        clip.add_transform(contrast_transform)
+        clip.add_pixel_transform(contrast_transform)
 
 
 class BlackAndWhite(GraphicEffect):
