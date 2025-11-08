@@ -48,8 +48,6 @@ class VideoClip(GraphicClip):
         video_duration = self._total_frames / self._fps
         if self._duration is None:
             self._duration = video_duration - offset
-        else:
-            self._duration = min(self._duration, video_duration - offset)
 
         self._audio_clip = AudioClip(
             path=self._path,

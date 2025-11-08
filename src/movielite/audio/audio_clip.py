@@ -44,8 +44,6 @@ class AudioClip(MediaClip):
         max_available_duration = self._total_duration - offset
         if self._duration is None:
             self._duration = max_available_duration
-        elif self._duration > max_available_duration:
-            self._duration = max_available_duration
 
     def _load_metadata(self) -> None:
         """
