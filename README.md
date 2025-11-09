@@ -3,11 +3,11 @@
 A fast and intuitive Python video editing library, designed as a lightweight alternative to MoviePy.
 
 <div align="center">
-  <img src="./docs/icon/movielite.gif" alt="MovieLite Demo" width="600">
+  <img src="https://github.com/francozanardi/movielite/blob/main/docs/icon/movielite.gif" alt="MovieLite Demo" width="600">
 </div>
 
 > The animation above was fully generated using **MovieLite** itself!  
-> Check out the code [here](./docs/icon/movielite_gif.py).
+> Check out the code [here](https://github.com/francozanardi/movielite/blob/main/docs/icon/movielite_gif.py).
 
 ## Overview
 
@@ -390,26 +390,26 @@ clip.close()
 
 ## API Reference
 
-For detailed API documentation, see [docs/api.md](docs/api.md).
+For detailed API documentation, see [docs/api.md](https://github.com/francozanardi/movielite/blob/main/docs/api.md).
 
 ### Core Classes
 
-- [VideoClip](docs/api.md#videoclip) - Load and manipulate video files
-- [AlphaVideoClip](docs/api.md#alphavideoclip) - Video with alpha channel support
-- [ImageClip](docs/api.md#imageclip) - Static images as video frames
-- [TextClip](docs/api.md#textclip) - Rendered text overlays
-- [AudioClip](docs/api.md#audioclip) - Audio track handling
-- [VideoWriter](docs/api.md#videowriter) - Render composition to file
+- [VideoClip](https://github.com/francozanardi/movielite/blob/main/docs/api.md#videoclip) - Load and manipulate video files
+- [AlphaVideoClip](https://github.com/francozanardi/movielite/blob/main/docs/api.md#alphavideoclip) - Video with alpha channel support
+- [ImageClip](https://github.com/francozanardi/movielite/blob/main/docs/api.md#imageclip) - Static images as video frames
+- [TextClip](https://github.com/francozanardi/movielite/blob/main/docs/api.md#textclip) - Rendered text overlays
+- [AudioClip](https://github.com/francozanardi/movielite/blob/main/docs/api.md#audioclip) - Audio track handling
+- [VideoWriter](https://github.com/francozanardi/movielite/blob/main/docs/api.md#videowriter) - Render composition to file
 
 ### Effect Modules
 
-- [vfx](docs/api.md#vfx) - Visual effects (fade, blur, color, zoom, glitch)
-- [afx](docs/api.md#afx) - Audio effects (fade in/out)
-- [vtx](docs/api.md#vtx) - Video transitions (crossfade, dissolve)
+- [vfx](https://github.com/francozanardi/movielite/blob/main/docs/api.md#vfx) - Visual effects (fade, blur, color, zoom, glitch)
+- [afx](https://github.com/francozanardi/movielite/blob/main/docs/api.md#afx) - Audio effects (fade in/out)
+- [vtx](https://github.com/francozanardi/movielite/blob/main/docs/api.md#vtx) - Video transitions (crossfade, dissolve)
 
 ## Advanced Usage
 
-For advanced topics, see [docs/advanced.md](docs/advanced.md):
+For advanced topics, see [docs/advanced.md](https://github.com/francozanardi/movielite/blob/main/docs/advanced.md):
 
 - Custom effect development
 - Performance optimization techniques
@@ -420,14 +420,14 @@ For advanced topics, see [docs/advanced.md](docs/advanced.md):
 
 ## Examples
 
-Additional examples are available in the [examples/](examples/) directory:
+Additional examples are available in the [examples/](https://github.com/francozanardi/movielite/blob/main/examples/) directory:
 
-- [basic_editing.py](examples/basic_editing.py) - Simple cuts and concatenation
-- [effects_showcase.py](examples/effects_showcase.py) - All built-in effects
-- [text_animations.py](examples/text_animations.py) - Animated text overlays
-- [audio_mixing.py](examples/audio_mixing.py) - Complex audio compositions
-- [transitions.py](examples/transitions.py) - Transition examples
-- [masking_effects.py](examples/masking_effects.py) - Advanced masking techniques
+- [basic_editing.py](https://github.com/francozanardi/movielite/blob/main/examples/basic_editing.py) - Simple cuts and concatenation
+- [effects_showcase.py](https://github.com/francozanardi/movielite/blob/main/examples/effects_showcase.py) - All built-in effects
+- [text_animations.py](https://github.com/francozanardi/movielite/blob/main/examples/text_animations.py) - Animated text overlays
+- [audio_mixing.py](https://github.com/francozanardi/movielite/blob/main/examples/audio_mixing.py) - Complex audio compositions
+- [transitions.py](https://github.com/francozanardi/movielite/blob/main/examples/transitions.py) - Transition examples
+- [masking_effects.py](https://github.com/francozanardi/movielite/blob/main/examples/masking_effects.py) - Advanced masking techniques
 
 ## Roadmap and Future Directions
 
@@ -458,8 +458,8 @@ Contributions are highly welcome! If any of these ideas resonate with you, feel 
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License - see [LICENSE](https://github.com/francozanardi/movielite/blob/main/LICENSE) for details.
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for version history and changes.
+See [CHANGELOG.md](https://github.com/francozanardi/movielite/blob/main/CHANGELOG.md) for version history and changes.
