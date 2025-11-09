@@ -191,6 +191,8 @@ class VideoWriter:
         num_frames_to_render = end_frame - start_frame
         update_interval = max(1, num_frames_to_render // 50)
 
+        remaining_clips_to_process = set(self._graphic_clips)
+
         with tqdm(total=num_frames_to_render, desc="Rendering video frames") as pbar:
             frames_since_update = 0
 
@@ -198,17 +200,17 @@ class VideoWriter:
                 current_time = frame_idx / self._fps
 
                 active_clips: list[GraphicClip] = [
-                    clip for clip in self._graphic_clips
+                    clip for clip in remaining_clips_to_process
                     if 0 <= (current_time - clip.start) < clip.duration
                 ]
                 background_clip = active_clips[0] if len(active_clips) > 0 else None
-                remaining_clips = active_clips[1:]
+                remaining_active_clips = active_clips[1:]
                 if background_clip:
-                    frame = background_clip.render_as_background(current_time, self._size[0], self._size[1], len(remaining_clips) > 0)
+                    frame = background_clip.render_as_background(current_time, self._size[0], self._size[1], len(remaining_active_clips) > 0)
                 else:
                     frame = empty_frame.get(np.uint8, self._size[0], self._size[1], 3).frame
 
-                for clip in remaining_clips:
+                for clip in remaining_active_clips:
                     frame = clip.render(frame, current_time)
 
                 try:
@@ -218,6 +220,15 @@ class VideoWriter:
                 except BrokenPipeError:
                     get_logger().error("FFmpeg process died early.")
                     break
+
+                # Close clips that have finished rendering
+                clips_to_close = [
+                    clip for clip in remaining_clips_to_process
+                    if current_time >= clip.end
+                ]
+                for clip in clips_to_close:
+                    clip.close()
+                    remaining_clips_to_process.remove(clip)
 
                 frames_since_update += 1
                 if frames_since_update >= update_interval:
@@ -231,8 +242,8 @@ class VideoWriter:
         process.stdin.close()
         process.wait()
 
-        # Close any VideoClip instances we created
-        for clip in self._graphic_clips:
+        # Close any remaining clips that weren't closed during rendering
+        for clip in remaining_clips_to_process:
             clip.close()
 
     def _merge_parts(self, part_paths: List[str], merged_path: str) -> None:

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Memory leak when rendering multiple video clips. Clips are now closed progressively as they finish rendering instead of keeping all clips open until the end.
 - Zoom built-in effects position were improved, now the render process supports float values as position. It doesn't support subpixeling, but it rounds the floats, instead of just ignoring the decimal part.
 
 ## [0.1.0] - 2025-11-08
