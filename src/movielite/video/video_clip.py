@@ -63,7 +63,7 @@ class VideoClip(GraphicClip):
         self._loop = False
     
     def _get_supported_video_file_extensions(self) -> list[str]:
-        return ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.webp']
+        return ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.webp', '.gif']
 
     def get_frame(self, t_rel: float) -> np.ndarray:
         """Get frame at relative time within this clip"""
