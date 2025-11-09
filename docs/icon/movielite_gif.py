@@ -72,4 +72,7 @@ if __name__ == "__main__":
     writer.write()
     for clip in clips:
         clip.close()
+
+    # NOTE: here we use ffmpeg to do the convertion from the mp4 generated to the gif
+    #  This is because movielite only support rendering .mp4 files for now.
     os.system(f'ffmpeg -y -i {VIDEO_FILENAME} -vf "fps=30,scale=800:-1:flags=lanczos,split[s0][s1];[s0]palettegen=stats_mode=full[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle" -loop 0 {GIF_FILENAME}')
