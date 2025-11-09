@@ -64,7 +64,7 @@ class ZoomIn(GraphicEffect):
             offset_x = anchor_x * (1 - current_scale)
             offset_y = anchor_y * (1 - current_scale)
 
-            return (int(base_pos[0] + offset_x), int(base_pos[1] + offset_y))
+            return (base_pos[0] + offset_x, base_pos[1] + offset_y)
 
         clip.set_scale(scale_with_zoom_in)
         clip.set_position(position_with_zoom_in)
@@ -137,7 +137,7 @@ class ZoomOut(GraphicEffect):
             offset_x = anchor_x * (1 - current_scale)
             offset_y = anchor_y * (1 - current_scale)
 
-            return (int(base_pos[0] + offset_x), int(base_pos[1] + offset_y))
+            return (base_pos[0] + offset_x, base_pos[1] + offset_y)
 
         clip.set_scale(scale_with_zoom_out)
         clip.set_position(position_with_zoom_out)

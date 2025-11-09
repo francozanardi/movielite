@@ -373,11 +373,11 @@ class GraphicClip(MediaClip):
             mask = self._mask._apply_transforms(mask, t_rel)
             mask = self._convert_to_mask(mask)
             mask_x, mask_y = self._mask.position(t_rel)
-            mask_x, mask_y = int(mask_x), int(mask_y)
+            mask_x, mask_y = round(mask_x), round(mask_y)
             mask_opacity_multiplier = self._mask.opacity(t_rel)
 
         x, y = self.position(t_rel)
-        x, y = int(x), int(y)
+        x, y = round(x), round(y)
         alpha_multiplier = self.opacity(t_rel)
 
         H, W = target_height, target_width
@@ -462,11 +462,11 @@ class GraphicClip(MediaClip):
             mask = self._mask._apply_transforms(mask, t_rel)
             mask = self._convert_to_mask(mask)
             mask_x, mask_y = self._mask.position(t_rel)
-            mask_x, mask_y = int(mask_x), int(mask_y)
+            mask_x, mask_y = round(mask_x), round(mask_y)
             mask_opacity_multiplier = self._mask.opacity(t_rel)
 
         x, y = self.position(t_rel)
-        x, y = int(x), int(y)
+        x, y = round(x), round(y)
         alpha_multiplier = self.opacity(t_rel)
 
         H, W = bg.shape[:2]
