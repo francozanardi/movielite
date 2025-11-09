@@ -1,7 +1,3 @@
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "movielite"
 version = "0.1.0"
@@ -41,9 +37,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=7.0",
-    "pytest-cov>=4.0",
+test = [
+    "pytest",
+    "pytest-cov",
 ]
 
 [project.urls]
@@ -51,8 +47,24 @@ dev = [
 "Repository" = "https://github.com/francozanardi/movielite"
 "Bug Tracker" = "https://github.com/francozanardi/movielite/issues"
 
-[tool.setuptools]
-include-package-data = true
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.hatch.build]
+sources = ["src"]
+
+exclude = [
+  "/.github",
+  "/.dev",
+  "/.pytest_cache",
+  "/.venv",
+  "/.vscode",
+  "/benchmarks",
+  "/docs",
+  "/examples",
+  "/tests",
+  ".gitignore",
+  "*.yml",
+  "*.yaml",
+]
