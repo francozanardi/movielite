@@ -6,14 +6,14 @@ This example demonstrates how to access and modify the audio track of a video cl
 import sys
 sys.path.insert(0, 'src')
 
-from movielite import VideoClip, AudioClip, VideoWriter
+from movielite import VideoClip, AudioClip, VideoWriter, afx
 
 # Example 1: Modify video audio independently
 print("Example 1: Fade in/out on video audio")
 video = VideoClip("sample.mp4", start=0, duration=10)
 
 # Access and modify the audio track
-video.audio.fade_in(2.0).fade_out(2.0).set_volume(0.7)
+video.audio.add_effect(afx.FadeIn(2.0)).add_effect(afx.FadeOut(2.0)).set_volume(0.7)
 
 writer = VideoWriter("output_with_faded_audio.mp4", duration=10)
 writer.add_clip(video)
@@ -43,7 +43,7 @@ music.set_volume(0.7)
 
 writer3 = VideoWriter("output_with_music.mp4", duration=10)
 writer3.add_clip(video3)
-writer3.add_audio(music)
+writer3.add_clip(music)
 writer3.write()
 
 # Example 4: Modify video timing and audio stays synced

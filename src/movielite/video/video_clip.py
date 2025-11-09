@@ -211,7 +211,7 @@ class VideoClip(GraphicClip):
 
         Example:
             >>> video = VideoClip("video.mp4", start=0, duration=10)
-            >>> video.audio.fade_in(2.0).set_volume(0.5)
+            >>> video.audio.set_volume(0.5)
         """
         return self._audio_clip
 

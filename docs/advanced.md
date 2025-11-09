@@ -253,7 +253,7 @@ clip.add_transform(CachedGrayscaleEffect())
 ### Complex Audio Mixing
 
 ```python
-from movielite import AudioClip, VideoClip, VideoWriter
+from movielite import AudioClip, VideoClip, VideoWriter, afx
 import numpy as np
 
 # Load multiple audio tracks
@@ -264,7 +264,7 @@ sfx1 = AudioClip("explosion.wav", start=10, volume=0.8)
 sfx2 = AudioClip("applause.wav", start=15, volume=0.6)
 
 # Apply effects to each track
-music.fade_in(2.0).fade_out(3.0)
+music.add_effect(afx.FadeIn(2.0)).add_effect(afx.FadeOut(3.0))
 narration.add_effect(afx.FadeIn(0.5))
 
 # Duck music during narration (custom volume curve)
