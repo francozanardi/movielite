@@ -1,10 +1,25 @@
 # MovieLite
 
-A performance-oriented Python video editing library focused on speed and simplicity.
+A fast and intuitive Python video editing library, designed as a lightweight alternative to MoviePy.
+
+<div align="center">
+  <img src="./docs/icon/movielite.gif" alt="MovieLite Demo" width="600">
+</div>
+
+> The animation above was fully generated using **MovieLite** itself!  
+> Check out the code [here](./docs/icon/movielite_gif.py).
 
 ## Overview
 
-`MovieLite` is a lightweight alternative to moviepy, designed for faster video processing with a clean, chainable API. It operates frame-by-frame, providing complete control over video and audio processing, while leveraging optimizations like Numba JIT compilation for critical rendering paths.
+`MovieLite` is a Python video editing library built with a focus on **speed and simplicity for common workflows**. It offers a clean, chainable API that will feel familiar to MoviePy users, but delivers significant performance gains for CPU-based rendering.
+
+The library achieves this speed by leveraging **Numba's JIT compilation** for critical operations like alpha blending and transformations. While it doesn't aim for feature-for-feature parity with MoviePy and currently lacks GPU acceleration, it excels at providing a much faster experience for everyday tasks, such as:
+
+- Applying transformations (zoom, position, scale).
+- Compositing overlays (text, images, other videos).
+- Rendering projects with multiple effects.
+
+If you love MoviePy's approach but need a significant speed boost for your CPU-bound projects, `MovieLite` is for you.
 
 ## Key Features
 
@@ -15,6 +30,87 @@ A performance-oriented Python video editing library focused on speed and simplic
 - **Multiprocessing support**: Parallel rendering for faster video generation
 - **Audio mixing**: Mix multiple audio tracks with per-sample control
 - **Memory efficient**: Streaming architecture for large video files
+
+## Performance Comparison
+
+`MovieLite` is designed to be faster than moviepy for common video editing tasks. Performance improvements come from:
+
+1. **Numba JIT compilation**: Critical rendering loops are compiled to native code
+2. **Optimized compositing**: Efficient alpha blending and frame composition
+3. **Memory management**: Streaming architecture reduces memory footprint
+4. **Multiprocessing**: Parallel frame rendering for multi-core systems
+
+### Benchmark Results
+
+To run benchmarks comparing movielite with moviepy 2.2.1:
+
+```bash
+python benchmarks/compare_moviepy.py --input /path/to/input
+```
+
+Real benchmark results (1280x720 video, 30fps):
+
+| Task | movielite | moviepy | Speedup |
+|------|-----------|---------|---------|
+| No processing | 6.92s | 6.92s | 1.00x |
+| Video zoom (1.0x → 1.5x) | 9.91s | 31.44s | **3.17x** 🚀 |
+| Fade in/out | 7.63s | 8.44s | 1.11x |
+| Text overlay | 8.98s | 33.70s | **3.75x** 🚀 |
+| Video overlay | 18.94s | 72.44s | **3.83x** 🚀 |
+| Alpha video overlay | 12.01s | 40.31s | **3.36x** 🚀 |
+| Complex mix* | 39.66s | 166.88s | **4.21x** 🚀 |
+| **Overall** | **104.04s** | **360.12s** | **3.46x** 🚀 |
+
+*Complex mix includes: video with zoom + fade, image clips with fade, text overlay, video overlay - all composed together.
+
+**movielite excels at:**
+- Transform operations (zoom, scale, resize) - **up to 3.17x faster**
+- Text overlays and compositing - **up to 3.75x faster**
+- Video overlays and layering - **up to 3.83x faster**
+- Alpha channel compositing - **up to 3.36x faster**
+- Complex multi-effect compositions - **up to 4.21x faster**
+
+*Results may vary based on hardware, video codec, and complexity.*
+
+## Architecture
+
+### Frame-by-Frame Processing
+
+Like moviepy, movielite operates on a frame-by-frame basis:
+
+```python
+# Every frame is individually processed
+for frame_idx in range(total_frames):
+    t = frame_idx / fps
+    frame = clip.get_frame(t)  # Get raw frame
+    frame = apply_transforms(frame, t)  # Apply effects
+    frame = blend_with_other_clips(frame, t)  # Composite
+    write_frame_to_output(frame)
+```
+
+This approach provides:
+- Complete control over every pixel
+- Ability to apply time-based effects
+- Support for complex compositing operations
+- Memory efficiency through streaming
+
+### Numba Optimization
+
+Critical operations are JIT-compiled with Numba:
+
+```python
+@numba.jit(nopython=True, cache=True)
+def blend_foreground_with_bgr_background_inplace(
+    background, foreground, x, y, opacity, mask, ...
+):
+    # Pixel-perfect alpha blending at native speed
+    ...
+```
+
+This provides near-native performance for:
+- Alpha blending operations
+- Pixel-wise transformations
+- Color space conversions
 
 ## What It Supports
 
@@ -292,87 +388,6 @@ writer.write(processes=8, video_quality=VideoQuality.HIGH)
 clip.close()
 ```
 
-## Performance Comparison
-
-`movielite` is designed to be faster than moviepy for common video editing tasks. Performance improvements come from:
-
-1. **Numba JIT compilation**: Critical rendering loops are compiled to native code
-2. **Optimized compositing**: Efficient alpha blending and frame composition
-3. **Memory management**: Streaming architecture reduces memory footprint
-4. **Multiprocessing**: Parallel frame rendering for multi-core systems
-
-### Benchmark Results
-
-To run benchmarks comparing movielite with moviepy 2.2.1:
-
-```bash
-python benchmarks/compare_moviepy.py --input /path/to/input
-```
-
-Real benchmark results (1280x720 video, 30fps):
-
-| Task | movielite | moviepy | Speedup |
-|------|-----------|---------|---------|
-| No processing | 6.92s | 6.92s | 1.00x |
-| Video zoom (1.0x → 1.5x) | 9.91s | 31.44s | **3.17x** 🚀 |
-| Fade in/out | 7.63s | 8.44s | 1.11x |
-| Text overlay | 8.98s | 33.70s | **3.75x** 🚀 |
-| Video overlay | 18.94s | 72.44s | **3.83x** 🚀 |
-| Alpha video overlay | 12.01s | 40.31s | **3.36x** 🚀 |
-| Complex mix* | 39.66s | 166.88s | **4.21x** 🚀 |
-| **Overall** | **104.04s** | **360.12s** | **3.46x** 🚀 |
-
-*Complex mix includes: video with zoom + fade, image clips with fade, text overlay, video overlay - all composed together.
-
-**movielite excels at:**
-- Transform operations (zoom, scale, resize) - **up to 3.17x faster**
-- Text overlays and compositing - **up to 3.75x faster**
-- Video overlays and layering - **up to 3.83x faster**
-- Alpha channel compositing - **up to 3.36x faster**
-- Complex multi-effect compositions - **up to 4.21x faster**
-
-*Results may vary based on hardware, video codec, and complexity.*
-
-## Architecture
-
-### Frame-by-Frame Processing
-
-Like moviepy, movielite operates on a frame-by-frame basis:
-
-```python
-# Every frame is individually processed
-for frame_idx in range(total_frames):
-    t = frame_idx / fps
-    frame = clip.get_frame(t)  # Get raw frame
-    frame = apply_transforms(frame, t)  # Apply effects
-    frame = blend_with_other_clips(frame, t)  # Composite
-    write_frame_to_output(frame)
-```
-
-This approach provides:
-- Complete control over every pixel
-- Ability to apply time-based effects
-- Support for complex compositing operations
-- Memory efficiency through streaming
-
-### Numba Optimization
-
-Critical operations are JIT-compiled with Numba:
-
-```python
-@numba.jit(nopython=True, cache=True)
-def blend_foreground_with_bgr_background_inplace(
-    background, foreground, x, y, opacity, mask, ...
-):
-    # Pixel-perfect alpha blending at native speed
-    ...
-```
-
-This provides near-native performance for:
-- Alpha blending operations
-- Pixel-wise transformations
-- Color space conversions
-
 ## API Reference
 
 For detailed API documentation, see [docs/api.md](docs/api.md).
@@ -413,6 +428,33 @@ Additional examples are available in the [examples/](examples/) directory:
 - [audio_mixing.py](examples/audio_mixing.py) - Complex audio compositions
 - [transitions.py](examples/transitions.py) - Transition examples
 - [masking_effects.py](examples/masking_effects.py) - Advanced masking techniques
+
+## Roadmap and Future Directions
+
+Our focus will be on three key areas: performance, developer experience, and flexibility.
+
+Contributions are highly welcome! If any of these ideas resonate with you, feel free to open an issue or a pull request to discuss it.
+
+### 1. Performance Enhancements
+
+- **GPU Acceleration:** While MovieLite is well optimized for CPU, adding optional GPU support (e.g., using CuPy or PyTorch for transformations and blending) is a major goal. This would unlock another order-of-magnitude performance boost for users with compatible hardware.
+- **Core Rendering Optimizations:** We plan to introduce more intelligent caching. For instance, an `ImageClip` with a static scale shouldn't be re-rendered on every frame.
+- **Expanded Numba JIT Usage:** Some of the current visual effects (`vfx`) can be rewritten using Numba to run at near-native speed, further improving rendering times for complex compositions.
+
+### 2. Developer Experience (DevEx)
+
+- **A More Intuitive API:** We want to make the library even more pleasant to work with. This includes:
+    - Adding convenience features like string-based positioning (`.set_position("center")`).
+    - Implementing a deep `.copy()` method for clips to make duplication easier.
+    - Providing ways to manage the effect stack, such as removing or replacing transformations after they've been added.
+- **Better Type Hinting and Documentation:** Improving inline documentation and type hints to enhance autocompletion and code analysis in modern editors.
+
+### 3. Flexibility and Advanced Control
+
+- **Flexible Output Options:** We aim to give users more control over the final render by:
+    - Officially supporting more video/audio codecs and container formats (e.g., WebM, MOV).
+    - Exposing FFmpeg parameters directly in the `VideoWriter`, similar to MoviePy's `ffmpeg_params`, for advanced users who need fine-grained control over encoding quality, presets, and other options.
+- **Expanded Effects Library:** Continuously adding new, performant effects to the `vfx`, `afx`, and `vtx` modules based on community feedback and common use cases.
 
 ## License
 
