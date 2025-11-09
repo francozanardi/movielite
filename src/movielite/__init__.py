@@ -20,7 +20,7 @@ from .enums import VideoQuality
 from .logger import get_logger, set_log_level
 from . import vfx, afx, vtx
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     "MediaClip",
