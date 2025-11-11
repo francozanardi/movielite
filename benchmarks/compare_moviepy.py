@@ -19,6 +19,9 @@ import json
 import os
 import argparse
 from pathlib import Path
+import movielite as ml
+import moviepy as mp
+from pictex import Canvas
 
 
 def benchmark_task(name: str, func, *args, **kwargs):
@@ -39,11 +42,9 @@ def benchmark_task(name: str, func, *args, **kwargs):
 # ===================== Test 1: No Processing =====================
 def test_no_processing_movielite(input_path: str, output_path: str):
     """Process video without any changes using movielite."""
-    from movielite import VideoClip, VideoWriter
+    clip = ml.VideoClip(input_path)
 
-    clip = VideoClip(input_path)
-
-    writer = VideoWriter(output_path, fps=clip.fps)
+    writer = ml.VideoWriter(output_path, fps=clip.fps)
     writer.add_clip(clip)
     writer.write()
 
@@ -52,9 +53,7 @@ def test_no_processing_movielite(input_path: str, output_path: str):
 
 def test_no_processing_moviepy(input_path: str, output_path: str):
     """Process video without any changes using moviepy."""
-    from moviepy import VideoFileClip
-
-    clip = VideoFileClip(input_path)
+    clip = mp.VideoFileClip(input_path)
     clip.write_videofile(
         output_path,
         preset="veryfast",
@@ -68,9 +67,7 @@ def test_no_processing_moviepy(input_path: str, output_path: str):
 # ===================== Test 2: Video with Zoom =====================
 def test_video_zoom_movielite(input_path: str, output_path: str):
     """Apply zoom effect using movielite."""
-    from movielite import VideoClip, VideoWriter
-
-    clip = VideoClip(input_path)
+    clip = ml.VideoClip(input_path)
 
     # Zoom from 1.0 to 1.5x over the video duration
     def zoom_scale(t):
@@ -79,7 +76,7 @@ def test_video_zoom_movielite(input_path: str, output_path: str):
 
     clip.set_scale(zoom_scale)
 
-    writer = VideoWriter(output_path, fps=clip.fps, size=clip.size)
+    writer = ml.VideoWriter(output_path, fps=clip.fps, size=clip.size)
     writer.add_clip(clip)
     writer.write()
 
@@ -88,9 +85,7 @@ def test_video_zoom_movielite(input_path: str, output_path: str):
 
 def test_video_zoom_moviepy(input_path: str, output_path: str):
     """Apply zoom effect using moviepy."""
-    from moviepy import VideoFileClip
-
-    clip = VideoFileClip(input_path)
+    clip = mp.VideoFileClip(input_path)
 
     # Zoom from 1.0 to 1.5x over the video duration
     def zoom_scale(t):
@@ -112,12 +107,10 @@ def test_video_zoom_moviepy(input_path: str, output_path: str):
 # ===================== Test 3: Fade In/Out =====================
 def test_fade_movielite(input_path: str, output_path: str):
     """Apply fade in/out effects using movielite."""
-    from movielite import VideoClip, VideoWriter, vfx
+    clip = ml.VideoClip(input_path)
+    clip.add_effect(ml.vfx.FadeIn(1.0)).add_effect(ml.vfx.FadeOut(1.0))
 
-    clip = VideoClip(input_path)
-    clip.add_effect(vfx.FadeIn(1.0)).add_effect(vfx.FadeOut(1.0))
-
-    writer = VideoWriter(output_path, fps=clip.fps)
+    writer = ml.VideoWriter(output_path, fps=clip.fps)
     writer.add_clip(clip)
     writer.write()
 
@@ -126,11 +119,8 @@ def test_fade_movielite(input_path: str, output_path: str):
 
 def test_fade_moviepy(input_path: str, output_path: str):
     """Apply fade in/out effects using moviepy."""
-    from moviepy import VideoFileClip
-    from moviepy.video.fx import FadeIn, FadeOut
-
-    clip = VideoFileClip(input_path)
-    clip = clip.with_effects([FadeIn(1), FadeOut(1)])
+    clip = mp.VideoFileClip(input_path)
+    clip = clip.with_effects([mp.vfx.FadeIn(1), mp.vfx.FadeOut(1)])
     clip.write_videofile(
         output_path,
         preset="veryfast",
@@ -145,16 +135,13 @@ def test_fade_moviepy(input_path: str, output_path: str):
 # ===================== Test 4: Text Overlay =====================
 def test_text_overlay_movielite(input_path: str, output_path: str):
     """Add text overlay using movielite."""
-    from movielite import VideoClip, TextClip, VideoWriter
-    from pictex import Canvas
-
-    video = VideoClip(input_path)
+    video = ml.VideoClip(input_path)
 
     canvas = Canvas().font_size("Arial").font_size(60).color("white")
-    text = TextClip("hello world", start=0, duration=video.duration, canvas=canvas)
+    text = ml.TextClip("hello world", start=0, duration=video.duration, canvas=canvas)
     text.set_position((video.size[0] // 2 - text.size[0] // 2, 100))
 
-    writer = VideoWriter(output_path, fps=video.fps, size=video.size)
+    writer = ml.VideoWriter(output_path, fps=video.fps, size=video.size)
     writer.add_clips([video, text])
     writer.write()
 
@@ -163,14 +150,12 @@ def test_text_overlay_movielite(input_path: str, output_path: str):
 
 def test_text_overlay_moviepy(input_path: str, output_path: str):
     """Add text overlay using moviepy."""
-    from moviepy import VideoFileClip, TextClip, CompositeVideoClip
+    video = mp.VideoFileClip(input_path)
 
-    video = VideoFileClip(input_path)
-
-    text = TextClip('arial.ttf', "hello world", font_size=60, color='white')
+    text = mp.TextClip('arial.ttf', "hello world", font_size=60, color='white')
     text = text.with_duration(video.duration).with_position(('center', 100))
 
-    final = CompositeVideoClip([video, text])
+    final = mp.CompositeVideoClip([video, text])
     final.write_videofile(
         output_path,
         preset="veryfast",
@@ -186,15 +171,13 @@ def test_text_overlay_moviepy(input_path: str, output_path: str):
 # ===================== Test 5: Video Overlay =====================
 def test_video_overlay_movielite(main_video: str, overlay_video: str, output_path: str):
     """Overlay one video on top of another using movielite."""
-    from movielite import VideoClip, VideoWriter
-
-    main = VideoClip(main_video)
-    overlay = VideoClip(overlay_video, duration=main.duration)
+    main = ml.VideoClip(main_video)
+    overlay = ml.VideoClip(overlay_video, duration=main.duration)
     overlay.set_opacity(0.3)
     overlay.set_size(main.size[0], main.size[1])
     overlay.loop(True)
 
-    writer = VideoWriter(output_path, fps=main.fps, size=main.size, duration=main.duration)
+    writer = ml.VideoWriter(output_path, fps=main.fps, size=main.size, duration=main.duration)
     writer.add_clips([main, overlay])
     writer.write()
 
@@ -204,17 +187,14 @@ def test_video_overlay_movielite(main_video: str, overlay_video: str, output_pat
 
 def test_video_overlay_moviepy(main_video: str, overlay_video: str, output_path: str):
     """Overlay one video on top of another using moviepy."""
-    from moviepy import VideoFileClip, CompositeVideoClip
-    from moviepy.video.fx import Loop
-
-    main = VideoFileClip(main_video)
-    overlay = VideoFileClip(overlay_video)
+    main = mp.VideoFileClip(main_video)
+    overlay = mp.VideoFileClip(overlay_video)
     overlay = overlay.with_opacity(0.3)
     overlay = overlay.resized(main.size)
-    overlay = overlay.with_effects([Loop()])
+    overlay = overlay.with_effects([mp.vfx.Loop()])
     overlay = overlay.with_duration(main.duration)
 
-    final = CompositeVideoClip([main, overlay])
+    final = mp.CompositeVideoClip([main, overlay])
     final.write_videofile(
         output_path,
         preset="veryfast",
@@ -231,10 +211,8 @@ def test_video_overlay_moviepy(main_video: str, overlay_video: str, output_path:
 # ===================== Test 6: Alpha Video Overlay =====================
 def test_alpha_overlay_movielite(main_video: str, alpha_video: str, output_path: str):
     """Overlay transparent video using movielite."""
-    from movielite import VideoClip, AlphaVideoClip, VideoWriter
-
-    main = VideoClip(main_video)
-    alpha = AlphaVideoClip(alpha_video)
+    main = ml.VideoClip(main_video)
+    alpha = ml.AlphaVideoClip(alpha_video)
 
     # Center the alpha video
     alpha.set_position(
@@ -243,7 +221,7 @@ def test_alpha_overlay_movielite(main_video: str, alpha_video: str, output_path:
     alpha.set_duration(main.duration)
     alpha.loop(True)
 
-    writer = VideoWriter(output_path, fps=main.fps, size=main.size)
+    writer = ml.VideoWriter(output_path, fps=main.fps, size=main.size)
     writer.add_clips([main, alpha])
     writer.write()
 
@@ -253,18 +231,15 @@ def test_alpha_overlay_movielite(main_video: str, alpha_video: str, output_path:
 
 def test_alpha_overlay_moviepy(main_video: str, alpha_video: str, output_path: str):
     """Overlay transparent video using moviepy."""
-    from moviepy import VideoFileClip, CompositeVideoClip
-    from moviepy.video.fx import Loop
-
-    main = VideoFileClip(main_video)
-    alpha = VideoFileClip(alpha_video, has_mask=True)
+    main = mp.VideoFileClip(main_video)
+    alpha = mp.VideoFileClip(alpha_video, has_mask=True)
 
     # Center the alpha video
     alpha = alpha.with_position('center')
-    alpha = alpha.with_effects([Loop()])
+    alpha = alpha.with_effects([mp.vfx.Loop()])
     alpha = alpha.with_duration(main.duration)
 
-    final = CompositeVideoClip([main, alpha])
+    final = mp.CompositeVideoClip([main, alpha])
     final.write_videofile(
         output_path,
         preset="veryfast",
@@ -288,11 +263,8 @@ def test_complex_mix_movielite(
     output_path: str
 ):
     """Complex test: videos + images + text + overlay + zoom + fade."""
-    from movielite import VideoClip, ImageClip, TextClip, VideoWriter, vfx
-    from pictex import Canvas
-
     # Main video with zoom and fade
-    main_video = VideoClip(video_path)
+    main_video = ml.VideoClip(video_path)
 
     # Zoom effect
     def zoom_scale(t):
@@ -300,22 +272,22 @@ def test_complex_mix_movielite(
         return 1.0 + 0.3 * progress
 
     main_video.set_scale(zoom_scale)
-    main_video.add_effect(vfx.FadeIn(1.0)).add_effect(vfx.FadeOut(1.0))
+    main_video.add_effect(ml.vfx.FadeIn(1.0)).add_effect(ml.vfx.FadeOut(1.0))
 
     # Image clips with durations
     img_duration = 5
-    img_clip1 = ImageClip(img1, start=main_video.end, duration=img_duration)
-    img_clip2 = ImageClip(img2, start=img_clip1.end, duration=img_duration)
-    img_clip3 = ImageClip(img3, start=img_clip2.end, duration=img_duration)
+    img_clip1 = ml.ImageClip(img1, start=main_video.end, duration=img_duration)
+    img_clip2 = ml.ImageClip(img2, start=img_clip1.end, duration=img_duration)
+    img_clip3 = ml.ImageClip(img3, start=img_clip2.end, duration=img_duration)
 
     # Add fade to images
-    img_clip1.add_effect(vfx.FadeIn(1.5))
-    img_clip2.add_effect(vfx.FadeIn(1.5))
-    img_clip3.add_effect(vfx.FadeIn(1.5))
+    img_clip1.add_effect(ml.vfx.FadeIn(1.5))
+    img_clip2.add_effect(ml.vfx.FadeIn(1.5))
+    img_clip3.add_effect(ml.vfx.FadeIn(1.5))
 
     # Text overlay
     canvas = Canvas().font_family("Arial").font_size(80).color("yellow")
-    text = TextClip(
+    text = ml.TextClip(
         "MovieLite Demo",
         start=0,
         duration=img_clip3.end,
@@ -324,12 +296,12 @@ def test_complex_mix_movielite(
     text.set_position((main_video.size[0] // 2 - text.size[0] // 2, 50))
 
     # Video overlay
-    overlay = VideoClip(overlay_video, duration=img_clip3.end)
+    overlay = ml.VideoClip(overlay_video, duration=img_clip3.end)
     overlay.set_opacity(0.3)
     overlay.set_size(main_video.size[0], main_video.size[1])
     overlay.loop(True)
 
-    writer = VideoWriter(
+    writer = ml.VideoWriter(
         output_path,
         fps=main_video.fps,
         size=main_video.size,
