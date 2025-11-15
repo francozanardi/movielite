@@ -343,7 +343,14 @@ class GraphicClip(MediaClip):
 
         return frame
     
-    def render_as_background(self, t_global: float, target_width: int, target_height: int, will_need_blending: bool) -> np.ndarray:
+    def render_as_background(
+            self,
+            t_global: float,
+            target_width: int,
+            target_height: int,
+            will_need_blending: bool,
+            is_transparent_background: bool = False
+        ) -> np.ndarray:
         """
         Render this clip as a background at a given global time.
 
@@ -386,8 +393,9 @@ class GraphicClip(MediaClip):
         has_target_size = h == H and w == W
         has_custom_position = x != 0 or y != 0
         need_blending = alpha_multiplier != 1.0 or mask is not None or frame.shape[2] == 4
+        matches_transparency_criteria = (frame.shape[2] == 4 and is_transparent_background) or (frame.shape[2] == 3 and not is_transparent_background)
 
-        if (has_target_size and not has_custom_position and not need_blending):
+        if (has_target_size and not has_custom_position and not need_blending and matches_transparency_criteria):
             # To keep in mind: if we get rid of float32 frames and use always uint8 frames,
             #  we will need to return a copy of the frame here if 'will_need_blending' is True
             #  It would be specially a problem with image clip as background
@@ -400,7 +408,7 @@ class GraphicClip(MediaClip):
             #   3. using memset(0) over the empty frame at the end of the loop (fill(0))
             return frame.astype(np.float32) if will_need_blending else frame
         
-        if (not need_blending):
+        if ((not has_target_size or has_custom_position) and not need_blending and matches_transparency_criteria):
             # it has custom position or different size, but doesn't need blending
             # this seems to be a bit faster that iterate the whole frame using numba in blending loop
             return crop_and_pad(frame, (H, W), (x, y), will_need_blending)
@@ -411,7 +419,7 @@ class GraphicClip(MediaClip):
         x2_bg = min(x + w, W)
 
         if y1_bg >= y2_bg or x1_bg >= x2_bg:
-            return empty_frame.get(np.float32 if will_need_blending else np.uint8, W, H, 3).frame
+            return empty_frame.get(np.float32 if will_need_blending else np.uint8, W, H, 4 if is_transparent_background else 3).frame
 
         # Frame coordinates
         y1_fr = y1_bg - y
@@ -419,12 +427,16 @@ class GraphicClip(MediaClip):
         y2_fr = y2_bg - y
         x2_fr = x2_bg - x
 
-        ef = empty_frame.get(np.float32 if will_need_blending else np.uint8, W, H, 3)
+        ef = empty_frame.get(np.float32 if will_need_blending else np.uint8, W, H, 4 if is_transparent_background else 3)
         bg = ef.frame
         roi = bg[y1_bg:y2_bg, x1_bg:x2_bg]
         sub_fr = frame[y1_fr:y2_fr, x1_fr:x2_fr]
 
-        blend_foreground_with_bgr_background_inplace(roi, sub_fr, x, y, alpha_multiplier, mask, mask_x, mask_y, mask_opacity_multiplier)
+        if bg.shape[2] == 3:
+            blend_foreground_with_bgr_background_inplace(roi, sub_fr, x, y, alpha_multiplier, mask, mask_x, mask_y, mask_opacity_multiplier)
+        else:
+            blend_foreground_with_bgra_background_inplace(roi, sub_fr, x, y, alpha_multiplier, mask, mask_x, mask_y, mask_opacity_multiplier)
+
         ef.mark_as_dirty()
         
         return bg

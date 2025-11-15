@@ -16,6 +16,7 @@ from .core import (
 from .audio import AudioClip
 from .video import VideoClip, AlphaVideoClip
 from .image import ImageClip, TextClip
+from .composite import CompositeClip, AlphaCompositeClip
 from .enums import VideoQuality
 from .logger import get_logger, set_log_level
 from . import vfx, afx, vtx
@@ -30,6 +31,8 @@ __all__ = [
     "ImageClip",
     "AudioClip",
     "TextClip",
+    "CompositeClip",
+    "AlphaCompositeClip",
     "VideoWriter",
     "VideoQuality",
     "get_logger",
