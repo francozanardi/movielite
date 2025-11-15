@@ -162,6 +162,7 @@ class VideoClip(GraphicClip):
         new_clip._scale = self._scale
         new_clip._target_size = self._target_size
         new_clip._frame_transforms = self._frame_transforms.copy()
+        new_clip._pixel_transforms = self._pixel_transforms.copy()
         new_clip._mask = self._mask
         new_clip._cap = None
         new_clip._last_frame_idx = -1
