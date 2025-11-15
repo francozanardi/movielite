@@ -191,7 +191,7 @@ class VideoWriter:
         num_frames_to_render = end_frame - start_frame
         update_interval = max(1, num_frames_to_render // 50)
 
-        remaining_clips_to_process = set(self._graphic_clips)
+        remaining_clips_to_process = self._graphic_clips.copy()
 
         with tqdm(total=num_frames_to_render, desc="Rendering video frames") as pbar:
             frames_since_update = 0
