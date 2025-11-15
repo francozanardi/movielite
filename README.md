@@ -52,14 +52,14 @@ Real benchmark results (1280x720 video, 30fps):
 
 | Task | movielite | moviepy | Speedup |
 |------|-----------|---------|---------|
-| No processing | 6.92s | 6.92s | 1.00x |
-| Video zoom (1.0x → 1.5x) | 9.91s | 31.44s | **3.17x** 🚀 |
-| Fade in/out | 7.63s | 8.44s | 1.11x |
-| Text overlay | 8.98s | 33.70s | **3.75x** 🚀 |
-| Video overlay | 18.94s | 72.44s | **3.83x** 🚀 |
-| Alpha video overlay | 12.01s | 40.31s | **3.36x** 🚀 |
-| Complex mix* | 39.66s | 166.88s | **4.21x** 🚀 |
-| **Overall** | **104.04s** | **360.12s** | **3.46x** 🚀 |
+| No processing | 6.34s | 6.71s | **1.06x** 🚀 |
+| Video zoom | 9.52s | 31.81s | **3.34x** 🚀 |
+| Fade in/out | 8.53s | 9.03s | **1.06x** 🚀 |
+| Text overlay | 7.82s | 35.35s | **4.52x** 🚀 |
+| Video overlay | 18.22s | 75.47s | **3.14x** 🚀 |
+| Alpha video overlay | 10.75s | 42.11s | **3.92x** 🚀 |
+| Complex mix* | 38.07s | 175.31s | **4.61x** 🚀 |
+| **Total** | **99.24s** | **375.79s** | **3.79x** 🚀 |
 
 *Complex mix includes: video with zoom + fade, image clips with fade, text overlay, video overlay - all composed together.
 

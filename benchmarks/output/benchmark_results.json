@@ -2,92 +2,92 @@
   "no_processing": {
     "movielite": {
       "success": true,
-      "time": 6.9163291454315186,
+      "time": 6.340750217437744,
       "error": null
     },
     "moviepy": {
       "success": true,
-      "time": 6.922740697860718,
+      "time": 6.710212230682373,
       "error": null
     },
-    "speedup": 1.000927016672339
+    "speedup": 1.0582678706107314
   },
   "video_zoom": {
     "movielite": {
       "success": true,
-      "time": 9.90886902809143,
+      "time": 9.519249200820923,
       "error": null
     },
     "moviepy": {
       "success": true,
-      "time": 31.435544729232788,
+      "time": 31.805400609970093,
       "error": null
     },
-    "speedup": 3.1724654589856516
+    "speedup": 3.3411669280837035
   },
   "fade": {
     "movielite": {
       "success": true,
-      "time": 7.627454519271851,
+      "time": 8.528115034103394,
       "error": null
     },
     "moviepy": {
       "success": true,
-      "time": 8.436288118362427,
+      "time": 9.02563738822937,
       "error": null
     },
-    "speedup": 1.1060424020945576
+    "speedup": 1.0583390763534986
   },
   "text_overlay": {
     "movielite": {
       "success": true,
-      "time": 8.982022762298584,
+      "time": 7.81951117515564,
       "error": null
     },
     "moviepy": {
       "success": true,
-      "time": 33.70478296279907,
+      "time": 35.34514021873474,
       "error": null
     },
-    "speedup": 3.752471336887784
+    "speedup": 4.520121453503931
   },
   "video_overlay": {
     "movielite": {
       "success": true,
-      "time": 18.936049461364746,
+      "time": 18.222970485687256,
       "error": null
     },
     "moviepy": {
       "success": true,
-      "time": 72.43943428993225,
+      "time": 75.47067475318909,
       "error": null
     },
-    "speedup": 3.8254776656414293
+    "speedup": 4.141513306651378
   },
   "alpha_overlay": {
     "movielite": {
       "success": true,
-      "time": 12.0121328830719,
+      "time": 10.742781639099121,
       "error": null
     },
     "moviepy": {
       "success": true,
-      "time": 40.306230545043945,
+      "time": 42.11478781700134,
       "error": null
     },
-    "speedup": 3.3554599285065776
+    "speedup": 3.920287057099026
   },
   "complex_mix": {
     "movielite": {
       "success": true,
-      "time": 39.66070032119751,
+      "time": 38.07037019729614,
       "error": null
     },
     "moviepy": {
       "success": true,
-      "time": 166.8799340724945,
+      "time": 175.3148181438446,
       "error": null
     },
-    "speedup": 4.207690048864365
+    "speedup": 4.605020051953577
   }
 }
