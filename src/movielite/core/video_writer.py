@@ -91,15 +91,18 @@ class VideoWriter:
     def write(
         self,
         processes: int = 1,
-        video_quality: VideoQuality = VideoQuality.MIDDLE
+        video_quality: VideoQuality = VideoQuality.MIDDLE,
+        high_precision_blending: bool = False
     ) -> None:
         """
         Render and write the final video.
 
         Args:
-            use_multiprocessing: Whether to use multiple processes for rendering
-            processes: Number of processes to use (if None, uses CPU count)
+            processes: Number of processes to use for rendering (1 = single process)
             video_quality: Quality preset for encoding
+            high_precision_blending: Use float32 for blending operations (default: False).
+                Set to True only when compositing many layers with transparency or when
+                working with subtle gradients. False uses uint8 (4x less memory, faster).
         """
         # Calculate duration if not specified
         if self._duration is None:
@@ -135,7 +138,7 @@ class VideoWriter:
 
                     p = mp.Process(
                         target=self._render_range,
-                        args=(start_frame, end_frame, part_path, video_quality)
+                        args=(start_frame, end_frame, part_path, video_quality, high_precision_blending)
                     )
                     jobs.append(p)
                     p.start()
@@ -149,16 +152,23 @@ class VideoWriter:
             else:
                 # Single-process
                 tmp = os.path.join(temp_dir, "partial.mp4")
-                self._render_range(0, total_frames, tmp, video_quality)
+                self._render_range(0, total_frames, tmp, video_quality, high_precision_blending)
                 self._mux_audio(tmp, self._output)
         finally:
             shutil.rmtree(temp_dir)
 
         get_logger().info(f"Video saved to: {self._output}")
 
-    def _render_range(self, start_frame: int, end_frame: int, part_path: str, video_quality: VideoQuality) -> None:
+    def _render_range(self, start_frame: int, end_frame: int, part_path: str, video_quality: VideoQuality, high_precision_blending: bool) -> None:
         """
         Render a range of frames by reading each frame.
+
+        Args:
+            start_frame: First frame index to render
+            end_frame: Last frame index (exclusive)
+            part_path: Output file path for this range
+            video_quality: Video encoding quality
+            high_precision_blending: Use float32 (True) or uint8 (False) for blending
         """
 
         ffmpeg_cmd = [
@@ -206,7 +216,8 @@ class VideoWriter:
                 background_clip = active_clips[0] if len(active_clips) > 0 else None
                 remaining_active_clips = active_clips[1:]
                 if background_clip:
-                    frame = background_clip.render_as_background(current_time, self._size[0], self._size[1], len(remaining_active_clips) > 0)
+                    will_need_blending = len(remaining_active_clips) > 0
+                    frame = background_clip.render_as_background(current_time, self._size[0], self._size[1], will_need_blending, high_precision_blending)
                 else:
                     frame = empty_frame.get(np.uint8, self._size[0], self._size[1], 3).frame
 

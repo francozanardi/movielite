@@ -55,26 +55,30 @@ class CompositeClip(GraphicClip):
         >>> writer.write()
     """
 
-    def __init__(self, clips: List[GraphicClip], size: tuple[int, int]) -> None:
+    def __init__(self, clips: List[GraphicClip], size: tuple[int, int], high_precision_blending: bool = False) -> None:
         """
         Create a composite clip from multiple graphic clips.
 
         Args:
             clips: List of GraphicClip instances to combine. Must contain at least one clip.
             size: Dimensions (width, height) of the composite canvas
+            high_precision_blending: Use float32 for blending operations (default: False).
+                Set to True only when compositing many layers with transparency or when
+                working with subtle gradients. False uses uint8 (4x less memory, faster).
 
         Raises:
             ValueError: If clips list is empty
         """
         if len(clips) == 0:
             raise ValueError("CompositeClip requires at least one clip.")
-        
+
         start = min([clip.start for clip in clips])
         duration = max([clip.end for clip in clips]) - start
         super().__init__(start, duration)
-        
+
         self._clips = clips
         self._size = size
+        self._high_precision_blending = high_precision_blending
         self._ef = self._create_empty_frame()
 
     @property
@@ -87,11 +91,13 @@ class CompositeClip(GraphicClip):
         remaining_active_clips = active_clips[1:]
 
         if background_clip:
+            will_need_blending = len(remaining_active_clips) > 0
             frame = background_clip.render_as_background(
                 t_rel,
                 self._size[0],
                 self._size[1],
-                len(remaining_active_clips) > 0,
+                will_need_blending,
+                self._high_precision_blending,
                 self._ef.frame.shape[2] == 4
             )
         else:

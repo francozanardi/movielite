@@ -349,6 +349,7 @@ class GraphicClip(MediaClip):
             target_width: int,
             target_height: int,
             will_need_blending: bool,
+            high_precision_blending: bool = False,
             is_transparent_background: bool = False
         ) -> np.ndarray:
         """
@@ -356,6 +357,11 @@ class GraphicClip(MediaClip):
 
         Args:
             t_global: Global time in seconds
+            target_width: Target width
+            target_height: Target height
+            will_need_blending: Whether subsequent clips will be blended on top
+            high_precision_blending: Use float32 (True) or uint8 (False) for blending
+            is_transparent_background: Whether to create transparent background
 
         Returns:
             This clip rendered for being a background
@@ -396,22 +402,21 @@ class GraphicClip(MediaClip):
         matches_transparency_criteria = (frame.shape[2] == 4 and is_transparent_background) or (frame.shape[2] == 3 and not is_transparent_background)
 
         if (has_target_size and not has_custom_position and not need_blending and matches_transparency_criteria):
-            # To keep in mind: if we get rid of float32 frames and use always uint8 frames,
-            #  we will need to return a copy of the frame here if 'will_need_blending' is True
-            #  It would be specially a problem with image clip as background
-
             # Possible improvment to research about:
             #  When will_need_blending is True, we are allocating a new chunk in memory for the whole frame in float32
             #  However, this allocation + copy in numpy, could be slower than:
             #   1. using our empty frame already reserved
             #   2. copying the 'frame' into this empty frame array using numba
             #   3. using memset(0) over the empty frame at the end of the loop (fill(0))
-            return frame.astype(np.float32) if will_need_blending else frame
+            if will_need_blending:
+                return frame.astype(np.float32) if high_precision_blending else frame.copy()
+            else:
+                return frame
         
         if ((not has_target_size or has_custom_position) and not need_blending and matches_transparency_criteria):
             # it has custom position or different size, but doesn't need blending
             # this seems to be a bit faster that iterate the whole frame using numba in blending loop
-            return crop_and_pad(frame, (H, W), (x, y), will_need_blending)
+            return crop_and_pad(frame, (H, W), (x, y), will_need_blending, high_precision_blending)
 
         y1_bg = max(y, 0)
         x1_bg = max(x, 0)
@@ -419,7 +424,8 @@ class GraphicClip(MediaClip):
         x2_bg = min(x + w, W)
 
         if y1_bg >= y2_bg or x1_bg >= x2_bg:
-            return empty_frame.get(np.float32 if will_need_blending else np.uint8, W, H, 4 if is_transparent_background else 3).frame
+            dtype = np.float32 if (will_need_blending and high_precision_blending) else np.uint8
+            return empty_frame.get(dtype, W, H, 4 if is_transparent_background else 3).frame
 
         # Frame coordinates
         y1_fr = y1_bg - y
@@ -427,7 +433,8 @@ class GraphicClip(MediaClip):
         y2_fr = y2_bg - y
         x2_fr = x2_bg - x
 
-        ef = empty_frame.get(np.float32 if will_need_blending else np.uint8, W, H, 4 if is_transparent_background else 3)
+        dtype = np.float32 if (will_need_blending and high_precision_blending) else np.uint8
+        ef = empty_frame.get(dtype, W, H, 4 if is_transparent_background else 3)
         bg = ef.frame
         roi = bg[y1_bg:y2_bg, x1_bg:x2_bg]
         sub_fr = frame[y1_fr:y2_fr, x1_fr:x2_fr]
@@ -438,7 +445,7 @@ class GraphicClip(MediaClip):
             blend_foreground_with_bgra_background_inplace(roi, sub_fr, x, y, alpha_multiplier, mask, mask_x, mask_y, mask_opacity_multiplier)
 
         ef.mark_as_dirty()
-        
+
         return bg
 
     def render(self, bg: np.ndarray, t_global: float) -> np.ndarray:
@@ -560,16 +567,20 @@ def _apply_pixel_transforms_inplace(frame, transforms, t_rel):
             frame[y, x, 1] = min(255, max(0, g))
             frame[y, x, 2] = min(255, max(0, r))
 
-def crop_and_pad(frame: np.ndarray, target_size: tuple[int, int], position: tuple[int, int], will_need_blending: bool) -> np.ndarray:
+def crop_and_pad(frame: np.ndarray, target_size: tuple[int, int], position: tuple[int, int], will_need_blending: bool, high_precision_blending: bool) -> np.ndarray:
     target_h, target_w = target_size
     frame_h, frame_w, frame_c = frame.shape
     pos_x, pos_y = position
 
     if frame_h >= target_h and frame_w >= target_w and pos_x == 0 and pos_y == 0:
         final_frame = frame[:target_h, :target_w]
-        return final_frame.astype(np.float32) if will_need_blending else final_frame
+        if will_need_blending:
+            return final_frame.astype(np.float32) if high_precision_blending else final_frame.copy()
+        else:
+            return final_frame
 
-    ef = empty_frame.get(np.float32 if will_need_blending else np.uint8, target_w, target_h, frame_c)
+    dtype = np.float32 if (will_need_blending and high_precision_blending) else np.uint8
+    ef = empty_frame.get(dtype, target_w, target_h, frame_c)
     canvas = ef.frame
 
     src_y_start = max(0, -pos_y)
