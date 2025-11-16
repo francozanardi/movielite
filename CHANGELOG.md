@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2025-11-15
+
+### Added
+
+- Support for composite clips with `CompositeClip` and `AlphaCompositeClip` classes for grouping multiple clips as a single unit
+- `high_precision_blending` parameter in `VideoWriter.write()` to control blending precision (float32 vs uint8)
+- `high_precision_blending` parameter in `CompositeClip` and `AlphaCompositeClip` for independent precision control
+
+### Changed
+
+- **Performance improvement**: Background frames now use uint8 by default during blending instead of float32, reducing memory usage and improving rendering speed
+- float32 precision is now opt-in via `high_precision_blending=True`, recommended only for multiple layers with transparency or subtle gradients
+
+### Fixed
+
+- Clip ordering preservation during rendering - replaced set with list to maintain proper z-order for composition and blending
+- Video clip subclipping now correctly copies pixel transforms to the new clip instance
+
 ## [0.1.1] - 2025-11-09
 
 ### Fixed
