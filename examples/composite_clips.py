@@ -24,13 +24,17 @@ def example_composite_as_group():
     text.set_position((logo.size[1] + 20, 50))
 
     # Combine them into a composite
-    branding = CompositeClip([logo, text], size=(300, 200))
+    branding = CompositeClip(
+        clips=[logo, text],
+        start=0,  # Starts at t=0s in the final video
+        size=(300, 200)
+        # duration auto-calculated as max(0+5, 0+5) = 5 seconds
+    )
 
     # Now we can transform the entire branding unit
     branding.set_position((50, 50))  # Position the entire group
     branding.set_scale(0.8)  # Scale everything together
     branding.set_opacity(0.9)  # Apply opacity to the whole group
-    branding.set_start(0)
 
     # Add to video
     video = VideoClip("video.mp4")
@@ -57,8 +61,12 @@ def example_reusable_composite():
         caption = TextClip(text, start=0, duration=3)
         caption.set_position((20, 30))
 
-        composite = CompositeClip([bg, caption], size=(400, 100))
-        composite.set_start(start)
+        composite = CompositeClip(
+            clips=[bg, caption],
+            start=start,
+            size=(400, 100)
+            # duration auto-calculated as 3 seconds
+        )
         composite.set_position((100, 500))
 
         return composite
@@ -99,8 +107,12 @@ def example_alpha_composite_transparency():
     text.set_opacity(0.5)
 
     # Use AlphaCompositeClip to preserve transparency
-    watermark = AlphaCompositeClip([bg, logo, text], size=(300, 150))
-    watermark.set_start(0)
+    watermark = AlphaCompositeClip(
+        clips=[bg, logo, text],
+        start=0,
+        size=(300, 150)
+        # duration auto-calculated as 10 seconds
+    )
     watermark.set_position((200, 300))
 
     video = VideoClip("video.mp4")
@@ -131,8 +143,12 @@ def example_animated_composite():
     icon.set_scale(0.5)
 
     # Combine with relative timings
-    intro = AlphaCompositeClip([icon, title, subtitle], size=(400, 200))
-    intro.set_start(2)  # Entire animation starts at t=2s
+    intro = AlphaCompositeClip(
+        clips=[icon, title, subtitle],
+        start=2,  # Entire animation starts at t=2s
+        size=(400, 200)
+        # duration auto-calculated as max(0+3, 1+3, 0.5+3.5) = 4 seconds
+    )
     intro.set_position((760, 440))  # Centered on 1920x1080
 
     # So: title appears at t=2s, icon at t=2.5s, subtitle at t=3s
@@ -163,7 +179,7 @@ def example_when_not_to_use_composite():
     overlay.set_position((100, 100))
 
     # Don't do this:
-    # composite = CompositeClip([bg, overlay], size=bg.size)
+    # composite = CompositeClip(clips=[bg, overlay], start=0, size=bg.size)
     # writer.add_clip(composite)
 
     # RIGHT: Use VideoWriter.add_clips() directly (more performant)
@@ -184,10 +200,10 @@ if __name__ == "__main__":
     print("For simple compositing, use VideoWriter.add_clips() instead.\n")
 
     # Uncomment the examples you want to run
-    example_composite_as_group()
-    example_reusable_composite()
-    example_alpha_composite_transparency()
-    example_animated_composite()
-    example_when_not_to_use_composite()
+    # example_composite_as_group()
+    # example_reusable_composite()
+    # example_alpha_composite_transparency()
+    # example_animated_composite()
+    # example_when_not_to_use_composite()
 
     print("Done!")
