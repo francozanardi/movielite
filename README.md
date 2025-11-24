@@ -3,7 +3,7 @@
 A fast and intuitive Python video editing library, designed as a lightweight alternative to MoviePy.
 
 <div align="center">
-  <img src="https://github.com/francozanardi/movielite/blob/main/docs/icon/movielite.gif" alt="MovieLite Demo" width="600">
+  <img src="https://res.cloudinary.com/dlvnbnb9v/image/upload/v1764024572/movielite_efcxcf.gif" alt="MovieLite Demo" width="800">
 </div>
 
 > The animation above was fully generated using **MovieLite** itself!  
