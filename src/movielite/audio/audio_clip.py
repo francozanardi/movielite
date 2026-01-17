@@ -40,10 +40,10 @@ class AudioClip(MediaClip):
         self._loop = False
         self._load_metadata()
 
-        # Calculate actual duration
+        # Calculate actual source duration
         max_available_duration = self._total_duration - offset
-        if self._duration is None:
-            self._duration = max_available_duration
+        if self._source_duration is None:
+            self._source_duration = max_available_duration
 
     def _load_metadata(self) -> None:
         """
@@ -107,15 +107,33 @@ class AudioClip(MediaClip):
 
         ffmpeg_cmd = [
             "ffmpeg",
-            "-ss", str(chunk_start),  # Seek to position (fast)
+            "-ss", str(chunk_start),  # Seek to position
+            "-t", str(actual_duration),  # Duration to read from source
             "-i", self._path,
-            "-t", str(actual_duration),  # Duration to read
+        ]
+
+        # Build atempo filter chain for speed adjustment
+        # atempo filter only supports range [0.5, 2.0], so we chain multiple filters if needed
+        if self._speed != 1.0:
+            atempo_filters = []
+            remaining_speed = self._speed
+            while remaining_speed > 2.0:
+                atempo_filters.append("atempo=2.0")
+                remaining_speed /= 2.0
+            while remaining_speed < 0.5:
+                atempo_filters.append("atempo=0.5")
+                remaining_speed /= 0.5
+            if remaining_speed != 1.0:
+                atempo_filters.append(f"atempo={remaining_speed}")
+            ffmpeg_cmd.extend(["-af", ",".join(atempo_filters)])
+
+        ffmpeg_cmd.extend([
             "-f", "f32le",  # 32-bit float little-endian
             "-acodec", "pcm_f32le",
             "-ar", str(self._sample_rate),
             "-ac", str(self._channels),
             "-"  # Output to stdout
-        ]
+        ])
 
         try:
             result = subprocess.run(
@@ -125,10 +143,7 @@ class AudioClip(MediaClip):
                 check=True
             )
 
-            # Convert raw bytes to numpy array (float32)
             samples = np.frombuffer(result.stdout, dtype=np.float32)
-
-            # Reshape based on channels
             if self._channels > 1:
                 samples = samples.reshape(-1, self._channels)
             else:
@@ -152,11 +167,9 @@ class AudioClip(MediaClip):
         """
         samples = chunk.copy()
 
-        # Apply volume
         if self._volume != 1.0:
             samples = samples * self._volume
 
-        # Apply custom transforms
         for transform in self._sample_transforms:
             samples = transform(samples, chunk_start_time, self._sample_rate)
 
@@ -176,14 +189,18 @@ class AudioClip(MediaClip):
             - chunk_start_time: Absolute start time of this chunk in the original file
         """
         current_time = self._offset
-        end_time = self._offset + self._duration
+        end_time = self._offset + self._source_duration
+
+        # Minimum chunk duration to avoid FFmpeg errors with very small chunks
+        MIN_CHUNK_DURATION = 0.001  # 1ms
 
         while current_time < end_time:
             actual_chunk_duration = min(chunk_duration, end_time - current_time)
+            
+            if actual_chunk_duration < MIN_CHUNK_DURATION:
+                break
 
-            # Load raw chunk
             raw_chunk = self._load_chunk_raw(current_time, actual_chunk_duration)
-
             if len(raw_chunk) > 0:
                 processed_chunk = self.process_chunk(raw_chunk, current_time)
                 yield processed_chunk, current_time
@@ -205,9 +222,8 @@ class AudioClip(MediaClip):
             Numpy array of shape (n_samples, n_channels) with float32 values in [-1, 1]
         """
         if end is None:
-            end = self._duration
+            end = self._source_duration
 
-        # Calculate absolute positions
         abs_start = self._offset + start
         abs_end = self._offset + end
 
@@ -215,7 +231,6 @@ class AudioClip(MediaClip):
         if duration <= 0:
             return np.zeros((0, self._channels), dtype=np.float32)
 
-        # Load and process as single chunk
         raw_samples = self._load_chunk_raw(abs_start, duration)
         return self.process_chunk(raw_samples, abs_start)
 
@@ -305,9 +320,9 @@ class AudioClip(MediaClip):
             offset=self._offset + start
         )
 
-        # Copy transforms and loop setting
         new_clip._sample_transforms = self._sample_transforms.copy()
         new_clip._loop = self._loop
+        new_clip._speed = self._speed
 
         return new_clip
 

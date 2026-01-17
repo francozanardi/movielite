@@ -103,7 +103,7 @@ class ZoomOut(GraphicEffect):
         """Apply zoom-out effect by modifying the clip's scale and position"""
         original_scale = clip._scale
         original_position = clip._position
-        clip_duration = clip._duration
+        clip_duration = clip.duration
 
         # Get clip size (after any resize transformations)
         clip_width, clip_height = clip.size
@@ -179,7 +179,7 @@ class KenBurns(GraphicEffect):
         original_position = clip._position
 
         # Use entire clip duration if not specified
-        effect_duration = self.duration if self.duration is not None else clip._duration
+        effect_duration = self.duration if self.duration is not None else clip.duration
 
         def scale_with_ken_burns(t):
             if t >= effect_duration:

@@ -326,10 +326,11 @@ class VideoWriter:
                                 # Downmix stereo to mono (average channels)
                                 samples = samples.mean(axis=1, keepdims=True)
 
-                            # Calculate position in the mix (chunk_start_time is absolute in file)
-                            # We need to offset by audio_clip.start in the composition
-                            relative_time = chunk_start_time - audio_clip.offset  # Time relative to clip start
-                            abs_start_time = audio_clip.start + relative_time  # Time in composition
+                            # chunk_start_time is in source file coordinates
+                            # We need to convert to timeline coordinates by dividing by speed
+                            source_relative_time = chunk_start_time - audio_clip.offset
+                            timeline_relative_time = source_relative_time / audio_clip.speed
+                            abs_start_time = audio_clip.start + timeline_relative_time
                             start_sample = int(abs_start_time * target_sample_rate)
                             end_sample = min(start_sample + len(samples), total_samples)
 

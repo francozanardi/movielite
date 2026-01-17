@@ -124,7 +124,7 @@ class BlurOut(GraphicEffect):
 
     def apply(self, clip: GraphicClip) -> None:
         """Apply blur-out effect by adding a frame transform"""
-        clip_duration = clip._duration
+        clip_duration = clip.duration
 
         def blur_out_transform(frame: np.ndarray, t: float) -> np.ndarray:
             # Apply blur at the end of the clip
