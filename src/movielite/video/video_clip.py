@@ -44,15 +44,15 @@ class VideoClip(GraphicClip):
 
         self._load_metadata(path)
 
-        # Determine actual duration
+        # Determine actual source duration
         video_duration = self._total_frames / self._fps
-        if self._duration is None:
-            self._duration = video_duration - offset
+        if self._source_duration is None:
+            self._source_duration = video_duration - offset
 
         self._audio_clip = AudioClip(
             path=self._path,
             start=self._start,
-            duration=self._duration,
+            duration=self._source_duration,  # Pass source duration to audio
             offset=self._offset
         )
 
@@ -156,7 +156,7 @@ class VideoClip(GraphicClip):
         new_clip._total_frames = self._total_frames
         new_clip._offset = self._offset + start
         new_clip._start = self._start
-        new_clip._duration = end - start
+        new_clip._source_duration = (end - start) * self._speed
         new_clip._position = self._position
         new_clip._opacity = self._opacity
         new_clip._scale = self._scale
@@ -168,6 +168,7 @@ class VideoClip(GraphicClip):
         new_clip._last_frame_idx = -1
         new_clip._last_frame = None
         new_clip._loop = self._loop
+        new_clip._speed = self._speed
 
         # Create audio clip for the subclip
         new_clip._audio_clip = self._audio_clip.subclip(start, end)
@@ -242,8 +243,8 @@ class VideoClip(GraphicClip):
         Returns:
             Self for chaining
         """
-        self._duration = duration
-        self._audio_clip._duration = duration
+        super().set_duration(duration)
+        self._audio_clip._source_duration = self._source_duration
         return self
 
     def set_offset(self, offset: float) -> Self:
@@ -265,7 +266,7 @@ class VideoClip(GraphicClip):
         """
         Set the end time of this clip in the composition.
         Also updates the audio track's end time.
-        Adjusts duration to match: duration = end - start
+        Adjusts duration to match, accounting for speed.
 
         Args:
             end: End time in seconds
@@ -273,8 +274,26 @@ class VideoClip(GraphicClip):
         Returns:
             Self for chaining
         """
-        self._duration = end - self._start
-        self._audio_clip._duration = self._duration
+        super().set_end(end)
+        self._audio_clip._source_duration = self._source_duration
+        return self
+
+    def set_speed(self, speed: float) -> Self:
+        """
+        Set the playback speed of this video clip.
+        Also updates the audio track's speed.
+
+        Args:
+            speed: Speed multiplier (must be > 0)
+                  - 1.0 = normal speed
+                  - 2.0 = twice as fast
+                  - 0.5 = half speed
+
+        Returns:
+            Self for chaining
+        """
+        super().set_speed(speed)
+        self._audio_clip._speed = speed
         return self
 
     def loop(self, enabled: bool = True) -> Self:

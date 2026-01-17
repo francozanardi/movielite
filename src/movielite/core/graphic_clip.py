@@ -368,10 +368,11 @@ class GraphicClip(MediaClip):
         """
         t_rel = (t_global - self._start)
 
-        if not (0 <= t_rel < self._duration):
+        if not (0 <= t_rel < self.duration):
             raise RuntimeError("A background clip must be active")
 
-        frame = self.get_frame(t_rel)
+        t_playback = t_rel * self._speed
+        frame = self.get_frame(t_playback)
         frame = self._apply_transforms(frame, t_rel)
 
         mask = None
@@ -463,10 +464,11 @@ class GraphicClip(MediaClip):
         """
         t_rel = (t_global - self._start)
 
-        if not (0 <= t_rel < self._duration):
+        if not (0 <= t_rel < self.duration):
             return bg
 
-        frame = self.get_frame(t_rel)
+        t_playback = t_rel * self._speed
+        frame = self.get_frame(t_playback)
         frame = self._apply_transforms(frame, t_rel)
 
         mask = None
