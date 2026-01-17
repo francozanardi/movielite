@@ -125,6 +125,7 @@ This provides near-native performance for:
 - Position, scale, opacity, and size transformations
 - Custom frame transformations
 - Video looping
+- Playback speed control
 
 ### Audio Capabilities
 - Audio clips with sample-level access
@@ -310,6 +311,22 @@ writer.write()
 
 clip1.close()
 clip2.close()
+```
+
+### Speed Control
+
+```python
+from movielite import VideoClip, VideoWriter
+
+# Create a slow-motion effect
+video = VideoClip("action.mp4", start=0, duration=5)
+video.set_speed(0.5)  # 5s of source plays in 10s (half speed)
+
+writer = VideoWriter("slow_motion.mp4", fps=video.fps)
+writer.add_clip(video)
+writer.write()
+
+video.close()
 ```
 
 ### Custom Frame Transformations
