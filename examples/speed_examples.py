@@ -135,4 +135,4 @@ if __name__ == "__main__":
     print("5. example_time_remapping() - Advanced time remapping")
     print("\nNote: These examples require actual video files to run.")
     print("Modify the file paths to match your video files.")
-    example_chaining()
+    example_basic_speed()
