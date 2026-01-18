@@ -80,6 +80,57 @@ class GraphicClip(MediaClip):
         self._scale = self._save_as_function(value)
         return self
 
+    def set_rotation(
+        self,
+        angle: Union[Callable[[float], float], float],
+        unit: str = "deg",
+        resample: str = "bilinear",
+        expand: bool = True,
+        center: Optional[Tuple[float, float]] = None,
+        translate: Optional[Tuple[float, float]] = None,
+        bg_color: Optional[Tuple[int, ...]] = None
+    ) -> Self:
+        """
+        Set the rotation of the clip.
+
+        Args:
+            angle: Rotation angle. Can be:
+                   - A float for static rotation (e.g., 45)
+                   - A function of time for animated rotation (e.g., lambda t: t * 360)
+                   Positive values rotate counter-clockwise.
+            unit: Unit of the angle, either "deg" (degrees) or "rad" (radians).
+                  Default is "deg".
+            resample: Resampling filter. One of "nearest", "bilinear" (default), 
+                      or "bicubic".
+            expand: If True (default), expands the canvas to fit the rotated content
+                    without clipping corners. If False, keeps original size (may clip).
+            center: Center of rotation as (x, y). If None (default), uses the center
+                    of the frame. Values are in pixels relative to top-left corner.
+            translate: Optional post-rotation translation as (dx, dy) in pixels.
+            bg_color: Background color for areas outside the rotated frame.
+                      If None (default), uses black or transparent based on frame type.
+
+        Returns:
+            Self for chaining
+
+        Example:
+            >>> clip.set_rotation(45)  # Static 45-degree rotation
+            >>> clip.set_rotation(lambda t: t * 90)  # 90 degrees per second
+            >>> clip.set_rotation(180, expand=False)  # Flip upside down, keep size
+            >>> clip.set_rotation(math.pi / 2, unit="rad")  # 90 degrees in radians
+        """
+        from ..vfx.rotation import Rotation
+        self.add_effect(Rotation(
+            angle,
+            unit=unit,
+            resample=resample,
+            expand=expand,
+            center=center,
+            translate=translate,
+            bg_color=bg_color
+        ))
+        return self
+
     def set_size(self, width: Optional[int] = None, height: Optional[int] = None) -> Self:
         """
         Set the size of the clip, maintaining aspect ratio if only one dimension is provided.

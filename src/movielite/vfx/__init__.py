@@ -6,6 +6,7 @@ from .color import Saturation, Brightness, Contrast, BlackAndWhite, Grayscale, S
 from .vignette import Vignette
 from .zoom import ZoomIn, ZoomOut, KenBurns
 from .glitch import Glitch, ChromaticAberration, Pixelate
+from .rotation import Rotation
 
 __all__ = [
     # Fade effects
@@ -32,4 +33,6 @@ __all__ = [
     'Glitch',
     'ChromaticAberration',
     'Pixelate',
+    # Transform effects
+    'Rotation',
 ]
