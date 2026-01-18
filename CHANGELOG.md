@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Playback speed control via `set_speed()` method for all clip types
 - Rotation support via `set_rotation()` method and `vfx.Rotation` effect
 
+### Fixed
+
+- `AlphaVideoClip.subclip()` now correctly returns `AlphaVideoClip` instead of `VideoClip`, preserving transparency and loop behavior
+
 ## [0.2.1] - 2025-11-15
 
 ### Changed

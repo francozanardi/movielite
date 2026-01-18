@@ -148,8 +148,7 @@ class VideoClip(GraphicClip):
         if start < 0 or end > self.duration or start >= end:
             raise ValueError(f"Invalid subclip range: ({start}, {end}) for clip duration {self.duration}")
 
-        # Create a new instance with adjusted timing
-        new_clip = self.__new__(VideoClip)
+        new_clip = self.__new__(type(self))
         new_clip._path = self._path
         new_clip._fps = self._fps
         new_clip._size = self._size
