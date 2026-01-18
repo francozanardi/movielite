@@ -120,9 +120,9 @@ This provides near-native performance for:
 - Image clips (static images as video frames)
 - Text rendering (via pictex library)
 - Mask support for advanced compositing effects
-- Video effects: fade, blur, color adjustments, vignette, zoom, glitch effects
+- Video effects: fade, blur, color adjustments, vignette, zoom, glitch effects, rotation
 - Video transitions: crossfade, dissolve, blur dissolve
-- Position, scale, opacity, and size transformations
+- Position, scale, opacity, rotation, and size transformations
 - Custom frame transformations
 - Video looping
 - Playback speed control
