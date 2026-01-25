@@ -262,7 +262,7 @@ from pictex import Canvas, LinearGradient
 WIDTH = 1920
 HEIGHT = 1080
 
-# Create canvas
+# Create canvas with gradient background
 canvas = (
     Canvas()
     .background_color(
@@ -295,14 +295,14 @@ from pictex import Canvas, Column, Text
 WIDTH = 1920
 HEIGHT = 1080
 
-# Create canvas
+# Create background canvas
 canvas = (
     Canvas()
     .background_color("white")
     .size(WIDTH, HEIGHT)
 )
 
-# Create column
+# Create column with texts
 column = (
     Column(
         Text("Hello, world!").font_size(50).color("blue"),
