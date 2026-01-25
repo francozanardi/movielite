@@ -253,6 +253,79 @@ writer.write()
 video.close()
 ```
 
+### Gradient background
+
+```python
+from movielite import ImageClip, VideoWriter
+from pictex import Canvas, LinearGradient
+
+WIDTH = 1920
+HEIGHT = 1080
+
+# Create canvas
+canvas = (
+    Canvas()
+    .background_color(
+        LinearGradient(
+            colors=["#ff0000", "#0000ff"],
+            start_point=(0.0, 0.0), # top-left corner
+            end_point=(1.0, 1.0) # bottom-right corner
+        )
+    )
+    .size(WIDTH, HEIGHT)
+)
+
+# Render to ImageClip
+background_clip = (
+    ImageClip(canvas.render().to_numpy())
+    .set_duration(10)
+)
+
+writer = VideoWriter("output.mp4", fps=30)
+writer.add_clip(background_clip)
+writer.write()
+```
+
+### Text in column
+
+```python
+from movielite import ImageClip, VideoWriter
+from pictex import Canvas, Column, Text
+
+WIDTH = 1920
+HEIGHT = 1080
+
+# Create canvas
+canvas = (
+    Canvas()
+    .background_color("white")
+    .size(WIDTH, HEIGHT)
+)
+
+# Create column
+column = (
+    Column(
+        Text("Hello, world!").font_size(50).color("blue"),
+        Text("This will be the bottom text.").font_size(30).color("green")
+    )
+    .gap(20)
+    .align_items("center")
+    .background_color("lightgray")
+    .place("center", "center")
+)
+
+# Render to ImageClip
+background_clip = (
+    ImageClip(canvas.render(column).to_numpy())
+    .set_duration(10)
+)
+
+writer = VideoWriter("output.mp4", fps=30)
+writer.add_clip(background_clip)
+writer.write()
+```
+
+
 ### Concatenating Videos
 
 ```python
