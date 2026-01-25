@@ -154,7 +154,7 @@ pip install movielite
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.10-3.13
 - FFmpeg (must be installed and available in PATH)
 - NumPy
 - OpenCV (opencv-python)
