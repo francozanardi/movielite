@@ -325,7 +325,6 @@ writer.add_clip(background_clip)
 writer.write()
 ```
 
-
 ### Concatenating Videos
 
 ```python
