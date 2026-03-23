@@ -1,16 +1,16 @@
 import numpy as np
-from typing import Optional
+from typing import Optional, Union, Iterable
 from ..core import GraphicClip
 from ..logger import get_logger
 import cv2
-from pictex import Canvas
+from pictex import Canvas, Element
 
 class TextClip(GraphicClip):
     """
     A text clip that renders text using the pictex library.
     """
 
-    def __init__(self, text: str, start: float = 0, duration: float = 5.0, canvas: Optional[Canvas] = None):
+    def __init__(self, text_or_element: Union[Iterable[Element], str], start: float = 0, duration: float = 5.0, canvas: Optional[Canvas] = None):
         """
         Create a text clip.
 
@@ -39,11 +39,16 @@ class TextClip(GraphicClip):
 
         super().__init__(start, duration)
 
-        self._text = text
+        if isinstance(text_or_element, str):
+            text = text_or_element
+            rendered = self._canvas.render(text)
+        else:
+            text = None
+            rendered = self._canvas.render(*text_or_element)
+
+        self._text = text if isinstance(text, str) else None
         self._canvas = canvas if canvas is not None else self._get_default_canvas()
 
-        # Render the text to get the image
-        rendered = self._canvas.render(text)
         img_bgra = rendered.to_numpy(mode='BGRA')
         self._image = img_bgra.astype(np.uint8)
         self._size = (self._image.shape[1], self._image.shape[0])
