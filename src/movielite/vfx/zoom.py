@@ -154,8 +154,8 @@ class KenBurns(GraphicEffect):
         duration: float = None,
         start_scale: float = 1.0,
         end_scale: float = 1.2,
-        start_position: tuple[int, int] = (0, 0),
-        end_position: tuple[int, int] = (0, 0)
+        start_position: tuple[float, float] = (0.5, 0.5),
+        end_position: tuple[float, float] = (0.5, 0.5)
     ):
         """
         Create a Ken Burns effect.
@@ -164,8 +164,9 @@ class KenBurns(GraphicEffect):
             duration: Duration of the effect (None = entire clip duration)
             start_scale: Starting zoom level
             end_scale: Ending zoom level
-            start_position: Starting position (x, y)
-            end_position: Ending position (x, y)
+            start_position: Starting position as fractions (0.0-1.0) of the overflow area.
+                (0, 0) = top-left, (0.5, 0.5) = center, (1, 1) = bottom-right
+            end_position: Ending position in the same relative units
         """
         self.duration = duration
         self.start_scale = start_scale
@@ -177,6 +178,7 @@ class KenBurns(GraphicEffect):
         """Apply Ken Burns effect by modifying scale and position"""
         original_scale = clip._scale
         original_position = clip._position
+        clip_width, clip_height = clip.size
 
         # Use entire clip duration if not specified
         effect_duration = self.duration if self.duration is not None else clip.duration
@@ -198,22 +200,28 @@ class KenBurns(GraphicEffect):
 
         def position_with_ken_burns(t):
             if t >= effect_duration:
-                base_pos = original_position(t)
-                return (base_pos[0] + self.end_position[0], base_pos[1] + self.end_position[1])
-
-            # Smooth easing (ease-in-out)
-            progress = t / effect_duration
-            # Cubic ease-in-out
-            if progress < 0.5:
-                eased_progress = 4 * progress * progress * progress
+                current_scale = self.end_scale
+                rx, ry = self.end_position
             else:
-                eased_progress = 1 - pow(-2 * progress + 2, 3) / 2
+                # Smooth easing (ease-in-out)
+                progress = t / effect_duration
+                # Cubic ease-in-out
+                if progress < 0.5:
+                    eased_progress = 4 * progress * progress * progress
+                else:
+                    eased_progress = 1 - pow(-2 * progress + 2, 3) / 2
 
-            current_x = self.start_position[0] + (self.end_position[0] - self.start_position[0]) * eased_progress
-            current_y = self.start_position[1] + (self.end_position[1] - self.start_position[1]) * eased_progress
+                current_scale = self.start_scale + (self.end_scale - self.start_scale) * eased_progress
+                rx = self.start_position[0] + (self.end_position[0] - self.start_position[0]) * eased_progress
+                ry = self.start_position[1] + (self.end_position[1] - self.start_position[1]) * eased_progress
+
+            overflow_x = clip_width * (current_scale - 1)
+            overflow_y = clip_height * (current_scale - 1)
+            offset_x = -rx * overflow_x
+            offset_y = -ry * overflow_y
 
             base_pos = original_position(t)
-            return (int(base_pos[0] + current_x), int(base_pos[1] + current_y))
+            return (int(base_pos[0] + offset_x), int(base_pos[1] + offset_y))
 
         clip.set_scale(scale_with_ken_burns)
         clip.set_position(position_with_ken_burns)
