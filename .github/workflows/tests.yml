@@ -54,6 +54,11 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - name: Set up Docker Buildx
+      # The default docker driver on GH runners can't export to the GHA cache;
+      # buildx sets up the docker-container driver which does.
+      uses: docker/setup-buildx-action@v3
+
     - name: Build test image
       uses: docker/build-push-action@v6
       with:
