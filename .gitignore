@@ -10,8 +10,8 @@ __pycache__
 dist
 *.mp3
 
-# E2E golden-file tests: committed inputs and expected outputs.
+# E2E fixtures and goldens are committed MP4s.
 !tests/e2e/fixtures/**
 !tests/e2e/goldens/**
-# But never commit the debug dumps assert_matches_golden writes on failure.
+# But not the debug dumps assert_matches_golden writes on failure.
 tests/e2e/goldens/_actual__*

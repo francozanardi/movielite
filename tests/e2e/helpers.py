@@ -1,18 +1,25 @@
 """
-Golden-file testing helpers for movielite's e2e suite.
+Golden-file testing helpers.
 
-Workflow:
-  # First-time setup (or after intentional output changes):
-  #   docker build -t movielite-test -f Dockerfile.test .
-  #   docker run --rm -e UPDATE_GOLDENS=1 -v $PWD:/workspace movielite-test
-  #   git add tests/e2e/{fixtures,goldens} && git commit
-  #
-  # Normal run (must match committed goldens byte-for-byte):
-  #   docker run --rm -v $PWD:/workspace movielite-test
+The golden is the MP4 committed under tests/e2e/goldens/ — open it in any player to
+visually verify what the test expects. Comparison is done on decoded pixels, not file
+bytes: we decode both the golden and the actual output to raw yuv420p via ffmpeg and
+sha256 the streams. YUV is the codec's native format, so decoding is deterministic
+across ffmpeg/libx264 versions for any spec-compliant H.264 stream — portable across
+environments while still catching real rendering regressions.
+
+On failure, the actual output is dumped as _actual__<name> next to the golden for
+side-by-side inspection in your player of choice.
+
+  UPDATE_GOLDENS=1 pytest tests/e2e   # regenerate; only rewrites files whose decoded
+                                      # content actually changed (keeps git diffs
+                                      # clean when only encoder metadata differs)
+  pytest tests/e2e                    # compare against committed goldens
 """
 import hashlib
 import os
 import shutil
+import subprocess
 from pathlib import Path
 
 E2E_DIR = Path(__file__).parent
@@ -22,50 +29,65 @@ GOLDENS_DIR = E2E_DIR / "goldens"
 UPDATE_GOLDENS = os.environ.get("UPDATE_GOLDENS", "").lower() in ("1", "true", "yes")
 
 
-def sha256_file(path: Path) -> str:
+def hash_decoded_video(path: Path) -> str:
+    """Decode `path` to raw yuv420p via ffmpeg and sha256 the pixel stream."""
+    proc = subprocess.Popen(
+        [
+            "ffmpeg", "-i", str(path),
+            "-f", "rawvideo", "-pix_fmt", "yuv420p",
+            "-loglevel", "error",
+            "-",
+        ],
+        stdout=subprocess.PIPE,
+    )
     h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 16), b""):
-            h.update(chunk)
+    assert proc.stdout is not None
+    for chunk in iter(lambda: proc.stdout.read(1 << 16), b""):
+        h.update(chunk)
+    if proc.wait() != 0:
+        raise RuntimeError(f"ffmpeg failed to decode {path}")
     return h.hexdigest()
 
 
 def assert_matches_golden(output: Path, golden_name: str) -> None:
     """
-    Compare `output` byte-for-byte against tests/e2e/goldens/<golden_name>.
+    Compare `output` against tests/e2e/goldens/<golden_name> by decoded-pixel hash.
 
-    - UPDATE_GOLDENS=1: copies `output` over the golden (creating goldens/ if needed).
-    - Golden missing (no UPDATE flag): generates it and fails with instructions, so
-      the first test run doesn't silently accept whatever came out.
-    - Byte mismatch: writes the actual output to goldens/_actual__<name> for inspection
-      and reports both hashes.
+    - UPDATE_GOLDENS=1: overwrite the golden only if the decoded pixels actually
+      differ (skips no-op writes so git stays quiet when the encoder embedded
+      different container metadata but the pixels didn't change).
+    - Golden missing: copy `output` into place and fail with instructions so the
+      first run doesn't silently accept whatever came out.
+    - Hash mismatch: copy `output` next to the golden as `_actual__<name>` for
+      side-by-side visual comparison, then fail with both hashes.
     """
     output = Path(output)
     golden = GOLDENS_DIR / golden_name
     GOLDENS_DIR.mkdir(exist_ok=True)
 
     if UPDATE_GOLDENS:
-        shutil.copyfile(output, golden)
+        if not golden.exists() or hash_decoded_video(output) != hash_decoded_video(golden):
+            shutil.copyfile(output, golden)
         return
 
     if not golden.exists():
         shutil.copyfile(output, golden)
         raise AssertionError(
-            f"Golden '{golden_name}' did not exist. It was just generated at:\n"
-            f"  {golden}\n"
-            f"Review it, commit it, and re-run the tests.\n"
-            f"To (re)generate all goldens at once: UPDATE_GOLDENS=1 pytest tests/e2e"
+            f"Golden {golden.name!r} did not exist — copied the current output into "
+            f"place at {golden}. Review it visually, commit it, then re-run.\n"
+            f"To (re)generate all: UPDATE_GOLDENS=1 pytest tests/e2e"
         )
 
-    actual_hash = sha256_file(output)
-    expected_hash = sha256_file(golden)
+    actual_hash = hash_decoded_video(output)
+    expected_hash = hash_decoded_video(golden)
     if actual_hash != expected_hash:
         debug = GOLDENS_DIR / f"_actual__{golden_name}"
         shutil.copyfile(output, debug)
         raise AssertionError(
-            f"Byte mismatch for {golden_name}\n"
-            f"  expected sha256: {expected_hash}  ({golden.stat().st_size} bytes)\n"
-            f"  actual   sha256: {actual_hash}  ({output.stat().st_size} bytes)\n"
-            f"  actual saved to: {debug}\n"
+            f"Decoded-pixel mismatch for {golden_name}\n"
+            f"  expected: {expected_hash}\n"
+            f"  actual:   {actual_hash}\n"
+            f"  actual output saved to: {debug}\n"
+            f"  → open {golden.name} and _actual__{golden_name} in a player to compare.\n"
             f"If the change is intentional: UPDATE_GOLDENS=1 pytest tests/e2e"
         )

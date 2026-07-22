@@ -520,26 +520,21 @@ Additional examples are available in the [examples/](https://github.com/francoza
 
 ## Running Tests
 
-The suite is split in two:
-
-- **Unit tests** — quick
-- **End-to-end tests** — render short clips and compare the output MP4s byte-for-byte against committed goldens. These must run inside the pinned `Dockerfile.test` container so the same `ffmpeg`/`libx264` build produces identical bytes locally and in CI.
-
 ```bash
-# Unit tests (fast, local)
 python -m venv .venv
 .venv/bin/pip install -e ".[test]"
-.venv/bin/pytest --ignore=tests/e2e
-
-# End-to-end tests (byte-exact, Docker required)
-docker build -t movielite-test -f Dockerfile.test .
-docker run --rm -v "$PWD:/workspace" movielite-test
-
-# Regenerate goldens after an intentional rendering change:
-docker run --rm -e UPDATE_GOLDENS=1 -v "$PWD:/workspace" movielite-test
+.venv/bin/pytest
 ```
 
-If an e2e test fails, the actual output is dumped next to the golden as `tests/e2e/goldens/_actual__<name>.mp4` for inspection. CI uploads these as artifacts on failure.
+The suite has unit tests plus an end-to-end battery under `tests/e2e/` that renders short clips and compares them against committed golden MP4s (`tests/e2e/goldens/*.mp4`). Comparison is done on decoded YUV pixels, not raw file bytes — that keeps it portable across ffmpeg/libx264 builds while still catching real rendering regressions. The MP4s are committed so you can open any of them in a player to see what the test expects.
+
+If a rendering change is intentional, regenerate the goldens (files whose decoded content actually changed get rewritten; the rest are left untouched to keep git clean):
+
+```bash
+UPDATE_GOLDENS=1 .venv/bin/pytest tests/e2e
+```
+
+When a test fails, the actual MP4 output is dumped next to the golden as `tests/e2e/goldens/_actual__<name>.mp4` so you can play both side-by-side in your player. CI uploads these as artifacts on failure.
 
 ## Roadmap and Future Directions
 

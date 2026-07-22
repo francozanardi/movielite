@@ -36,54 +36,21 @@ jobs:
         pip install -e ".[test]"
 
     - name: Run tests with coverage
-      # e2e/ is byte-exact and only valid inside Dockerfile.test — run it in the e2e job below.
       run: |
-        pytest --ignore=tests/e2e --cov=src/movielite --cov-branch --cov-report=xml
+        pytest --cov=src/movielite --cov-branch --cov-report=xml
+
+    - name: Upload divergent e2e outputs on failure
+      # tests/e2e/helpers.assert_matches_golden dumps the actual MP4 next to the
+      # golden as _actual__<name>.mp4 on hash mismatch. Grab those for inspection.
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: e2e-actual-outputs-py${{ matrix.python-version }}
+        path: tests/e2e/goldens/_actual__*
+        if-no-files-found: ignore
+        retention-days: 14
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v5
       with:
         files: ./coverage.xml
-
-  e2e:
-    # Byte-exact golden-file tests. Pinned ffmpeg via Dockerfile.test so bytes
-    # match locally and in CI. Do NOT switch this to native ubuntu — different
-    # ffmpeg builds will drift the goldens.
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Set up Docker Buildx
-      # The default docker driver on GH runners can't export to the GHA cache;
-      # buildx sets up the docker-container driver which does.
-      uses: docker/setup-buildx-action@v3
-
-    - name: Build test image
-      uses: docker/build-push-action@v6
-      with:
-        context: .
-        file: Dockerfile.test
-        tags: movielite-test:ci
-        load: true
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-    - name: Run e2e tests
-      run: |
-        docker run --rm \
-          -v "$PWD:/workspace" \
-          movielite-test:ci \
-          pytest tests/e2e -v
-
-    - name: Upload divergent outputs on failure
-      # When a golden mismatch happens, assert_matches_golden writes the actual
-      # output next to the golden as _actual__<name>.mp4. Capture those so we can
-      # inspect what CI produced vs what's committed.
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: e2e-actual-outputs
-        path: tests/e2e/goldens/_actual__*
-        if-no-files-found: ignore
-        retention-days: 14
