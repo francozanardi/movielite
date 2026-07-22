@@ -136,8 +136,8 @@ def example_zoom_effects():
     clip3.add_effect(vfx.KenBurns(
         start_scale=1.0,
         end_scale=1.3,
-        start_position=(0, 0),
-        end_position=(-100, -50)
+        start_position=(0.5, 0.5),
+        end_position=(1, 0)
     ))
 
     writer = VideoWriter("output_ken_burns.mp4", fps=clip3.fps, size=clip3.size)

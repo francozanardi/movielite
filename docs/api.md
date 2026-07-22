@@ -895,8 +895,8 @@ clip.add_effect(vfx.KenBurns(
     duration=None,  # Uses entire clip duration
     start_scale=1.0,
     end_scale=1.2,
-    start_position=(0, 0),
-    end_position=(100, 50)
+    start_position=(0.5, 0.5),
+    end_position=(1, 0)
 ))
 ```
 
@@ -904,8 +904,8 @@ clip.add_effect(vfx.KenBurns(
 - `duration` (Optional[float]): Duration of the effect (None = entire clip duration)
 - `start_scale` (float): Starting zoom level
 - `end_scale` (float): Ending zoom level
-- `start_position` (Tuple[int, int]): Starting position (x, y)
-- `end_position` (Tuple[int, int]): Ending position (x, y)
+- `start_position` (Tuple[float, float]): Starting position as fractions (0.0-1.0). (0,0)=top-left, (0.5,0.5)=center, (1,1)=bottom-right
+- `end_position` (Tuple[float, float]): Ending position in the same relative units
 
 ---
 

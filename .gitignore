@@ -9,3 +9,6 @@ __pycache__
 .dev
 dist
 *.mp3
+*.lrv
+.DS_Store
+.venv
