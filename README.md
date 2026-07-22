@@ -518,6 +518,29 @@ Additional examples are available in the [examples/](https://github.com/francoza
 - [transitions.py](https://github.com/francozanardi/movielite/blob/main/examples/transitions.py) - Transition examples
 - [masking_effects.py](https://github.com/francozanardi/movielite/blob/main/examples/masking_effects.py) - Advanced masking techniques
 
+## Running Tests
+
+The suite is split in two:
+
+- **Unit tests** — quick
+- **End-to-end tests** — render short clips and compare the output MP4s byte-for-byte against committed goldens. These must run inside the pinned `Dockerfile.test` container so the same `ffmpeg`/`libx264` build produces identical bytes locally and in CI.
+
+```bash
+# Unit tests (fast, local)
+python -m venv .venv
+.venv/bin/pip install -e ".[test]"
+.venv/bin/pytest --ignore=tests/e2e
+
+# End-to-end tests (byte-exact, Docker required)
+docker build -t movielite-test -f Dockerfile.test .
+docker run --rm -v "$PWD:/workspace" movielite-test
+
+# Regenerate goldens after an intentional rendering change:
+docker run --rm -e UPDATE_GOLDENS=1 -v "$PWD:/workspace" movielite-test
+```
+
+If an e2e test fails, the actual output is dumped next to the golden as `tests/e2e/goldens/_actual__<name>.mp4` for inspection. CI uploads these as artifacts on failure.
+
 ## Roadmap and Future Directions
 
 Our focus will be on three key areas: performance, developer experience, and flexibility.
