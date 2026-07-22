@@ -4,13 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from .helpers import FIXTURES_DIR
+from .helpers import E2EOutput, FIXTURES_DIR, install_frame_capture
 
 
 def _generate_bg_fixture(path: Path) -> None:
     """testsrc2 128x72 @ 15fps, 2s. Only used to (re)create tests/e2e/fixtures/bg.mp4
-    if it's missing from the working tree — normally the file is committed so every
-    run reads the same H.264 stream and movielite decodes identical frames.
+    if it's missing — normally the file is committed so every run reads the same
+    H.264 stream and movielite decodes identical frames.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
@@ -39,5 +39,10 @@ def bg_video() -> Path:
 
 
 @pytest.fixture
-def output_path(tmp_path) -> Path:
-    return tmp_path / "output.mp4"
+def output(monkeypatch, tmp_path) -> E2EOutput:
+    """Bundles the MP4 output path (for VideoWriter) and the raw-frame capture path
+    (populated transparently via monkeypatch on subprocess.Popen)."""
+    mp4 = tmp_path / "output.mp4"
+    raw = tmp_path / "raw_frames.bin"
+    install_frame_capture(monkeypatch, raw)
+    return E2EOutput(mp4=mp4, raw=raw)

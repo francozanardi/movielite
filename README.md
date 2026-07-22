@@ -526,15 +526,18 @@ python -m venv .venv
 .venv/bin/pytest
 ```
 
-The suite has unit tests plus an end-to-end battery under `tests/e2e/` that renders short clips and compares them against committed golden MP4s (`tests/e2e/goldens/*.mp4`). Comparison is done on decoded YUV pixels, not raw file bytes — that keeps it portable across ffmpeg/libx264 builds while still catching real rendering regressions. The MP4s are committed so you can open any of them in a player to see what the test expects.
+The suite has unit tests plus an end-to-end battery under `tests/e2e/` that renders short clips and asserts the result matches a committed golden. Two artifacts back each golden:
 
-If a rendering change is intentional, regenerate the goldens (files whose decoded content actually changed get rewritten; the rest are left untouched to keep git clean):
+- `tests/e2e/goldens/<name>.mp4` — the human-viewable reference. Open it in any player to see what the test expects.
+- `tests/e2e/goldens/hashes.json` — sha256 of the raw BGR frames movielite produced **before** they hit ffmpeg. The comparison at test time runs against these hashes, so any difference in the encoder version between machines doesn't affect the result.
+
+If a rendering change is intentional, regenerate the goldens (only the entries whose pixels actually changed get rewritten; the rest are left untouched to keep git clean):
 
 ```bash
 UPDATE_GOLDENS=1 .venv/bin/pytest tests/e2e
 ```
 
-When a test fails, the actual MP4 output is dumped next to the golden as `tests/e2e/goldens/_actual__<name>.mp4` so you can play both side-by-side in your player. CI uploads these as artifacts on failure.
+When a test fails, the actual MP4 output is dumped next to the golden as `tests/e2e/goldens/_actual__<name>.mp4` so you can play both side-by-side. CI uploads these as artifacts on failure.
 
 ## Roadmap and Future Directions
 
