@@ -4,7 +4,7 @@ import os
 from typing import Optional
 from ..core import GraphicClip
 from ..audio import AudioClip
-from ..logger import get_logger
+from .readers import VideoReader, open_reader
 
 try:
     from typing import Self # type: ignore[attr-defined]
@@ -42,10 +42,11 @@ class VideoClip(GraphicClip):
         self._path = path
         self._offset = offset
 
-        self._load_metadata(path)
+        self._reader: VideoReader = self._open_reader(path)
+        self._size = self._reader.size
 
         # Determine actual source duration
-        video_duration = self._total_frames / self._fps
+        video_duration = self._reader.total_frames / self._reader.fps
         if self._source_duration is None:
             self._source_duration = video_duration - offset
 
@@ -56,57 +57,32 @@ class VideoClip(GraphicClip):
             offset=self._offset
         )
 
-        # Video reading state
-        self._cap = None
-        self._last_frame_idx = -1
-        self._last_frame = None
         self._loop = False
-    
+
+    def _open_reader(self, path: str) -> VideoReader:
+        """Hook for subclasses to override reader selection (e.g. force alpha)."""
+        return open_reader(path, with_alpha=False)
+
     def _get_supported_video_file_extensions(self) -> list[str]:
         return ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.webp', '.gif']
+
+    @property
+    def _fps(self) -> float:
+        return self._reader.fps
+
+    @property
+    def _total_frames(self) -> int:
+        return self._reader.total_frames
 
     def get_frame(self, t_rel: float) -> np.ndarray:
         """Get frame at relative time within this clip"""
         actual_time = t_rel + self._offset
         if self._loop:
-            video_duration = self._total_frames / self._fps
+            video_duration = self._reader.total_frames / self._reader.fps
             actual_time = (actual_time % video_duration) if video_duration > 0 else actual_time
 
-        target_frame_idx = int(actual_time * self._fps)
-        target_frame_idx = max(0, min(target_frame_idx, self._total_frames - 1))
-
-        if self._cap is None:
-            self._cap = cv2.VideoCapture(self._path)
-            self._last_frame_idx = -1
-            get_logger().debug(f"ProcessedVideoClip: Opened video capture for {self._path}")
-
-        if target_frame_idx == self._last_frame_idx and self._last_frame is not None:
-            return self._last_frame
-        
-        if target_frame_idx < self._last_frame_idx or target_frame_idx - self._last_frame_idx > 5:
-            # Need to seek (slower, but necessary for random access)
-            self._cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame_idx)
-            ret, frame = self._cap.read()
-            if not ret:
-                get_logger().warning(f"Failed to read frame {target_frame_idx} from {self._path}")
-                return np.zeros((self._size[1], self._size[0], 3), dtype=np.uint8)
-            
-            self._last_frame_idx = target_frame_idx
-            self._last_frame = frame
-            return frame
-        
-        current_frame_idx = self._last_frame_idx
-        while current_frame_idx < target_frame_idx:
-            ret, frame = self._cap.read()
-            if not ret:
-                get_logger().warning(f"Failed to read frame {target_frame_idx} from {self._path}")
-                frame = np.zeros((self._size[1], self._size[0], 3), dtype=np.uint8)
-            
-            current_frame_idx = current_frame_idx + 1
-        
-        self._last_frame_idx = current_frame_idx
-        self._last_frame = frame
-        return frame
+        target_frame_idx = int(actual_time * self._reader.fps)
+        return self._reader.get_frame(target_frame_idx)
 
     def _apply_resize(self, frame: np.ndarray) -> np.ndarray:
         """Resize frame (happens every frame for videos)"""
@@ -126,13 +102,8 @@ class VideoClip(GraphicClip):
     def close(self):
         """Close the video file"""
         super().close()
-        if hasattr(self, '_cap') and self._cap is not None:
-            self._cap.release()
-            self._cap = None
-        if hasattr(self, '_last_frame_idx'):
-            self._last_frame_idx = -1
-        if hasattr(self, '_last_frame'):
-            self._last_frame = None
+        if hasattr(self, '_reader') and self._reader is not None:
+            self._reader.close()
 
     def subclip(self, start: float, end: float) -> Self:
         """
@@ -150,9 +121,7 @@ class VideoClip(GraphicClip):
 
         new_clip = self.__new__(type(self))
         new_clip._path = self._path
-        new_clip._fps = self._fps
         new_clip._size = self._size
-        new_clip._total_frames = self._total_frames
         new_clip._offset = self._offset + start
         new_clip._start = self._start
         new_clip._source_duration = (end - start) * self._speed
@@ -163,41 +132,20 @@ class VideoClip(GraphicClip):
         new_clip._frame_transforms = self._frame_transforms.copy()
         new_clip._pixel_transforms = self._pixel_transforms.copy()
         new_clip._mask = self._mask
-        new_clip._cap = None
-        new_clip._last_frame_idx = -1
-        new_clip._last_frame = None
         new_clip._loop = self._loop
         new_clip._speed = self._speed
+        # Subclip gets its own reader: independent seek state, no shared subprocess.
+        new_clip._reader = new_clip._open_reader(self._path)
 
         # Create audio clip for the subclip
         new_clip._audio_clip = self._audio_clip.subclip(start, end)
 
         return new_clip
 
-    def _load_metadata(self, path: str) -> None:
-        """Load video metadata using cv2.VideoCapture"""
-        cap = cv2.VideoCapture(path)
-        if not cap.isOpened():
-            raise RuntimeError(f"Unable to open video file: {path}")
-
-        w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        self._fps = cap.get(cv2.CAP_PROP_FPS)
-        self._total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-        if self._fps <= 0 or w <= 0 or h <= 0 or self._total_frames <= 0:
-            cap.release()
-            raise RuntimeError(f"Could not read valid properties from video: {path}")
-
-        self._size = (w, h)
-
-        get_logger().debug(f"ProcessedVideoClip loaded: {path}, size=({w}, {h}), fps={self._fps}, frames={self._total_frames}")
-        cap.release()
-
     @property
     def fps(self):
         """Get the frames per second of this video"""
-        return self._fps
+        return self._reader.fps
 
     @property
     def audio(self) -> AudioClip:
